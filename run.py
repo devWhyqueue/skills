@@ -176,7 +176,7 @@ def main() -> int:
             ensure_clean_working_tree(allowed_dirty_paths=files)
 
         if args.audit_only:
-            status = "pass" if not any(v.severity == "error" for v in violations) else "fail"
+            status = "pass" if not violations else "fail"
             report = {
                 "status": status,
                 "changed_files": files,
@@ -200,10 +200,10 @@ def main() -> int:
             files, violations = audit_changed_python_files(args.base, args.head)
             all_violations = violations
 
-            if not any(v.severity == "error" for v in violations):
+            if not violations:
                 break
 
-        clean_code_ok = not any(v.severity == "error" for v in all_violations)
+        clean_code_ok = not all_violations
         status = "pass" if clean_code_ok else "fail"
         summary = "All clean code checks passed." if clean_code_ok else "Remaining violations require semantic refactor."
 

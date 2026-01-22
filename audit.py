@@ -12,7 +12,6 @@ from typing import Iterable, List, Optional, Tuple
 @dataclass
 class Violation:
     rule_id: str
-    severity: str  # "error" | "warn"
     file: str
     line: Optional[int]
     message: str
@@ -196,7 +195,6 @@ def audit_file(path: str) -> List[Violation]:
     if loc > 250:
         violations.append(Violation(
             rule_id="structure.file_max_loc",
-            severity="error",
             file=path,
             line=None,
             message=f"File exceeds 250 lines ({loc}).",
@@ -205,7 +203,6 @@ def audit_file(path: str) -> List[Violation]:
     if detect_mixed_spark_sql_and_pyspark_api(source):
         violations.append(Violation(
             rule_id="structure.no_mixed_spark_styles",
-            severity="error",
             file=path,
             line=None,
             message="File appears to mix Spark SQL (spark.sql) and PySpark DataFrame API.",
@@ -214,7 +211,6 @@ def audit_file(path: str) -> List[Violation]:
     for line_no, evidence in detect_print_statements(source):
         violations.append(Violation(
             rule_id="organization.no_print",
-            severity="error",
             file=path,
             line=line_no,
             message="print() is prohibited; use logging.",
@@ -224,7 +220,6 @@ def audit_file(path: str) -> List[Violation]:
     for line_no, evidence in detect_broad_except(source):
         violations.append(Violation(
             rule_id="quality.no_broad_exception",
-            severity="error",
             file=path,
             line=line_no,
             message="Avoid broad except Exception/BaseException; catch specific exceptions.",
@@ -234,7 +229,6 @@ def audit_file(path: str) -> List[Violation]:
     for line_no, evidence in detect_commented_out_code(source):
         violations.append(Violation(
             rule_id="organization.no_commented_code",
-            severity="error",
             file=path,
             line=line_no,
             message="Commented-out code blocks are not allowed.",
@@ -244,7 +238,6 @@ def audit_file(path: str) -> List[Violation]:
     for line_no, evidence in detect_local_imports(source):
         violations.append(Violation(
             rule_id="organization.imports_top_level_only",
-            severity="error",
             file=path,
             line=line_no,
             message="Imports must be top-level only (no local imports).",
@@ -257,7 +250,6 @@ def audit_file(path: str) -> List[Violation]:
             if not has_docstring(func):
                 violations.append(Violation(
                     rule_id="quality.public_docstring_required",
-                    severity="error",
                     file=path,
                     line=getattr(func, "lineno", None),
                     message=f"Public function '{func.name}' must have a docstring.",
@@ -266,7 +258,6 @@ def audit_file(path: str) -> List[Violation]:
             if not all_args_typed(func):
                 violations.append(Violation(
                     rule_id="quality.public_type_hints_required",
-                    severity="error",
                     file=path,
                     line=getattr(func, "lineno", None),
                     message=f"Public function '{func.name}' must have type hints (no Any, return required).",
@@ -277,7 +268,6 @@ def audit_file(path: str) -> List[Violation]:
                 if flen > 25:
                     violations.append(Violation(
                         rule_id="organization.function_length",
-                        severity="warn",
                         file=path,
                         line=getattr(func, "lineno", None),
                         message=f"Function '{func.name}' is {flen} lines; should be < 25.",
@@ -285,7 +275,6 @@ def audit_file(path: str) -> List[Violation]:
     except SyntaxError as e:
         violations.append(Violation(
             rule_id="syntax.parse_error",
-            severity="error",
             file=path,
             line=e.lineno,
             message=f"Syntax error prevents analysis: {e.msg}",
@@ -297,7 +286,6 @@ def audit_file(path: str) -> List[Violation]:
         if count_files > 7:
             violations.append(Violation(
                 rule_id="structure.max_files_per_package",
-                severity="warn",
                 file=path,
                 line=None,
                 message=f"Package '{pkg_root}' has {count_files} Python files; should be <= 7.",
@@ -324,7 +312,7 @@ def main() -> int:
     args = ap.parse_args()
 
     files, violations = audit_changed_python_files(args.base, args.head)
-    status = "pass" if not any(v.severity == "error" for v in violations) else "fail"
+    status = "pass" if not violations else "fail"
 
     report = {
         "status": status,
@@ -340,7 +328,7 @@ def main() -> int:
         print(f"Status: {status}")
         for v in violations:
             loc = f"{v.file}:{v.line}" if v.line else v.file
-            print(f"- [{v.severity}] {v.rule_id} @ {loc}: {v.message}")
+            print(f"- {v.rule_id} @ {loc}: {v.message}")
 
     return 0 if status == "pass" else 2
 
