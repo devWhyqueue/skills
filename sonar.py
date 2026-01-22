@@ -13,6 +13,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+try:
+    import truststore
+
+    truststore.inject_into_ssl()
+except Exception:
+    pass
+
 
 @dataclass
 class SonarIssue:
@@ -68,9 +75,14 @@ def _http_get_json(url: str, token: str) -> Dict[str, Any]:
 
 
 def _read_report_task() -> Dict[str, str]:
-    path = Path(".scannerwork/report-task.txt")
-    if not path.exists():
-        raise RuntimeError("Missing .scannerwork/report-task.txt (pysonar output).")
+    candidates = [
+        Path(".sonar/report-task.txt"),  # SonarScanner's default working directory in many setups
+        Path(".scannerwork/report-task.txt"),  # legacy/default for other scanners
+    ]
+
+    path = next((p for p in candidates if p.exists()), None)
+    if path is None:
+        raise RuntimeError("Missing report-task.txt (pysonar output).")
 
     data: Dict[str, str] = {}
     for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
@@ -80,30 +92,83 @@ def _read_report_task() -> Dict[str, str]:
     return data
 
 
+def _read_sonar_project_properties(path: Path = Path("sonar-project.properties")) -> Dict[str, str]:
+    """
+    Parse `sonar-project.properties` into a simple dict.
+
+    This intentionally supports only basic `key=value` lines.
+    """
+    if not path.exists():
+        return {}
+
+    props: Dict[str, str] = {}
+    for raw in path.read_text(encoding="utf-8", errors="replace").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        k, v = line.split("=", 1)
+        key = k.strip()
+        if not key:
+            continue
+        props[key] = v.strip()
+    return props
+
+
 def run_pysonar(
-    host_url: str,
     token: str,
-    project_key: str,
     branch: str,
-    sources: str = "src",
+    host_url: Optional[str] = None,
+    project_key: Optional[str] = None,
+    sources: Optional[str] = None,
     extra_args: Optional[List[str]] = None,
 ) -> None:
     extra_args = extra_args or []
 
-    cmd = _venv_tool_cmd("pysonar") + [
-        f"-Dsonar.host.url={host_url}",
-        f"-Dsonar.token={token}",
-        f"-Dsonar.projectKey={project_key}",
-        f"-Dsonar.branch.name={branch}",
-        f"-Dsonar.sources={sources}",
-        "-Dsonar.sourceEncoding=UTF-8",
-        "-Dsonar.scm.provider=git",
-        "-Dsonar.exclusions=**/.venv/**,**/venv/**,**/.mypy_cache/**,**/.ruff_cache/**,**/__pycache__/**,**/dist/**,**/build/**,**/.git/**",
-    ] + extra_args
+    # Ensure `sitecustomize.py` in this skill directory is importable by the
+    # `pysonar` subprocess so we can inject system CA certificates via truststore.
+    env = os.environ.copy()
+    skill_dir = str(Path(__file__).resolve().parent)
+    existing_pythonpath = env.get("PYTHONPATH", "")
+    env["PYTHONPATH"] = skill_dir if not existing_pythonpath else f"{skill_dir}{os.pathsep}{existing_pythonpath}"
 
-    code, out, err = _run(cmd)
+    # Avoid reading stale task metadata from a previous run.
+    for stale in (Path(".sonar/report-task.txt"), Path(".scannerwork/report-task.txt")):
+        try:
+            stale.unlink()
+        except FileNotFoundError:
+            pass
+
+    props = _read_sonar_project_properties()
+
+    cmd = _venv_tool_cmd("pysonar") + ["-t", token, "--sonar-branch-name", branch]
+
+    if host_url:
+        cmd.extend(["--sonar-host-url", host_url])
+    if project_key:
+        cmd.extend(["--sonar-project-key", project_key])
+    if sources:
+        cmd.extend(["--sonar-sources", sources])
+
+    if "sonar.sourceEncoding" not in props:
+        cmd.append("-Dsonar.sourceEncoding=UTF-8")
+    if "sonar.scm.provider" not in props:
+        cmd.append("-Dsonar.scm.provider=git")
+    if "sonar.exclusions" not in props:
+        cmd.append(
+            "-Dsonar.exclusions=**/.venv/**,**/venv/**,**/.mypy_cache/**,**/.ruff_cache/**,**/__pycache__/**,**/dist/**,**/build/**,**/.git/**"
+        )
+
+    cmd += extra_args
+
+    p = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=env)
+    code, out, err = p.returncode, p.stdout, p.stderr
     if code != 0:
-        raise RuntimeError(f"pysonar failed (exit {code}).\nSTDOUT:\n{out}\nSTDERR:\n{err}")
+        # Some configurations exit non-zero for a failed Quality Gate, while still
+        # producing `report-task.txt`. We want gate-only enforcement via API.
+        try:
+            _read_report_task()
+        except Exception as e:
+            raise RuntimeError(f"pysonar failed (exit {code}).\nSTDOUT:\n{out}\nSTDERR:\n{err}") from e
 
 
 def wait_for_compute_engine(task_url: str, token: str, timeout_seconds: int = 180) -> str:
@@ -146,11 +211,11 @@ def fetch_quality_gate(
 
 
 def run_sonar_gate_check(
-    host_url: str,
     token: str,
-    project_key: str,
     branch: str,
-    sources: str = "src",
+    host_url: Optional[str] = None,
+    project_key: Optional[str] = None,
+    sources: Optional[str] = None,
 ) -> SonarGateResult:
     """
     Gate-only mode:
@@ -161,12 +226,34 @@ def run_sonar_gate_check(
     """
 
     extra_args = [
+        # Let the skill enforce the gate via API to keep pysonar exit codes stable.
+        "--no-sonar-qualitygate-wait",
+        # Avoid warnings when `requires-python` contains specifiers like "~=3.12.0".
+        f"-Dsonar.python.version={sys.version_info.major}.{sys.version_info.minor}",
         # Airflow DAGs are often intentionally long; ignore the "too many lines" rule in dags/**.
         "-Dsonar.issue.ignore.multicriteria=e1",
         "-Dsonar.issue.ignore.multicriteria.e1.ruleKey=python:S138",
         "-Dsonar.issue.ignore.multicriteria.e1.resourceKey=**/dags/**",
     ]
-    run_pysonar(host_url, token, project_key, branch, sources=sources, extra_args=extra_args)
+    props = _read_sonar_project_properties()
+    effective_host_url = host_url or props.get("sonar.host.url")
+    effective_project_key = project_key or props.get("sonar.projectKey")
+    effective_sources = sources or props.get("sonar.sources") or "src"
+
+    if not effective_host_url or not effective_project_key:
+        raise RuntimeError(
+            "Missing Sonar config. Provide `sonar-project.properties` with "
+            "`sonar.host.url` and `sonar.projectKey`, or pass --sonar-host-url / --sonar-project-key."
+        )
+
+    run_pysonar(
+        token=token,
+        branch=branch,
+        host_url=effective_host_url,
+        project_key=effective_project_key,
+        sources=effective_sources,
+        extra_args=extra_args,
+    )
 
     report = _read_report_task()
     ce_task_url = report.get("ceTaskUrl")
@@ -175,7 +262,9 @@ def run_sonar_gate_check(
 
     analysis_id = wait_for_compute_engine(ce_task_url, token)
 
-    gate = fetch_quality_gate(host_url, token, project_key, branch, analysis_id=analysis_id)
+    server_url = report.get("serverUrl") or effective_host_url
+    report_project_key = report.get("projectKey") or effective_project_key
+    gate = fetch_quality_gate(server_url, token, report_project_key, branch, analysis_id=analysis_id)
     project_status = gate.get("projectStatus", {})
     status = project_status.get("status", "NONE")
     conditions = project_status.get("conditions", [])

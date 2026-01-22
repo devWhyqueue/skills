@@ -41,11 +41,58 @@ def git_current_branch() -> str:
     return b if b else "unknown"
 
 
-def ensure_clean_working_tree() -> None:
-    if git_has_changes():
-        raise RuntimeError(
-            "Working tree is not clean. Commit/stash your current changes before running this skill."
-        )
+def git_changed_paths() -> List[str]:
+    """
+    Return a list of changed paths in the working tree (including untracked).
+    Uses `--porcelain=v1 -z` to handle whitespace and renames robustly.
+    """
+    p = run(["git", "status", "--porcelain=v1", "-z"])
+    if p.returncode != 0:
+        raise RuntimeError(f"git status failed:\n{p.stderr}")
+
+    out = p.stdout
+    if not out:
+        return []
+
+    entries = out.split("\0")
+    paths: List[str] = []
+    i = 0
+    while i < len(entries):
+        entry = entries[i]
+        if not entry:
+            i += 1
+            continue
+
+        # Format: XY SP PATH  (PATH may be followed by NUL NEWPATH for renames/copies)
+        status = entry[:2]
+        rest = entry[3:] if len(entry) >= 4 else ""
+        if rest:
+            paths.append(rest)
+
+        if status and status[0] in {"R", "C"}:
+            if i + 1 < len(entries) and entries[i + 1]:
+                paths.append(entries[i + 1])
+            i += 2
+        else:
+            i += 1
+
+    return paths
+
+
+def ensure_clean_working_tree(allowed_dirty_paths: Optional[List[str]] = None) -> None:
+    changed = git_changed_paths()
+    if not changed:
+        return
+
+    allowed = set(allowed_dirty_paths or [])
+    if allowed and all(p in allowed for p in changed):
+        return
+
+    msg = "Working tree is not clean."
+    if allowed:
+        msg += " Unrelated changes detected outside the PR-changed Python files."
+    msg += " Commit/stash your current changes before running this skill."
+    raise RuntimeError(msg)
 
 
 def git_commit(message: str) -> None:
@@ -99,7 +146,8 @@ def derive_scope_from_files(files: List[str]) -> str:
 def main() -> int:
     import argparse
 
-    load_env_file(Path(__file__).with_name(".sonar.env"))
+    # Load per-project secrets/config from the calling project's root (CWD).
+    load_env_file(Path.cwd() / ".env")
     ap = argparse.ArgumentParser()
     ap.add_argument("--base", default=detect_base_ref("develop"))
     ap.add_argument("--head", default="HEAD")
@@ -110,22 +158,22 @@ def main() -> int:
 
     # Sonar integration (gate only)
     ap.add_argument("--sonar", action="store_true", help="Run pysonar locally and enforce Quality Gate")
-    ap.add_argument("--sonar-project-key", default=os.getenv("SONAR_PROJECT_KEY", "dwh-data-pipelines"))
+    ap.add_argument("--sonar-project-key", default=os.getenv("SONAR_PROJECT_KEY", ""))
     ap.add_argument("--sonar-host-url", default=os.getenv("SONAR_HOST_URL", ""))
     ap.add_argument("--sonar-token", default=os.getenv("SONAR_TOKEN", ""))
-    ap.add_argument("--sonar-sources", default=os.getenv("SONAR_SOURCES", "src"))
+    ap.add_argument("--sonar-sources", default=os.getenv("SONAR_SOURCES", ""))
 
     args = ap.parse_args()
 
     try:
-        if not args.audit_only:
-            ensure_clean_working_tree()
-
         fixed_files: List[str] = []
         all_violations = []
 
         files, violations = audit_changed_python_files(args.base, args.head)
         all_violations = violations
+
+        if not args.audit_only:
+            ensure_clean_working_tree(allowed_dirty_paths=files)
 
         if args.audit_only:
             status = "pass" if not any(v.severity == "error" for v in violations) else "fail"
@@ -168,25 +216,25 @@ def main() -> int:
         # Sonar gate (only after clean code errors are resolved)
         sonar_report = None
         if clean_code_ok and args.sonar:
-            if not args.sonar_host_url or not args.sonar_token:
+            if not args.sonar_token:
                 status = "fail"
-                summary = "Sonar enabled but SONAR_HOST_URL / SONAR_TOKEN not provided."
+                summary = "Sonar enabled but SONAR_TOKEN not provided (expected in the calling project's .env)."
                 sonar_report = {"status": "misconfigured"}
             else:
                 branch = git_current_branch()
                 gate = run_sonar_gate_check(
-                    host_url=args.sonar_host_url,
                     token=args.sonar_token,
-                    project_key=args.sonar_project_key,
                     branch=branch,
-                    sources=args.sonar_sources,
+                    host_url=args.sonar_host_url or None,
+                    project_key=args.sonar_project_key or None,
+                    sources=args.sonar_sources or None,
                 )
                 sonar_report = {
                     "quality_gate": gate.status,
                     "conditions": gate.conditions,
                     "branch": branch,
-                    "project_key": args.sonar_project_key,
-                    "sources": args.sonar_sources,
+                    "project_key": args.sonar_project_key or "AUTO",
+                    "sources": args.sonar_sources or "AUTO",
                 }
                 if gate.status != "OK":
                     status = "fail"
@@ -196,6 +244,7 @@ def main() -> int:
         commit_msg = f"refactor({scope}): clean code compliance"
         committed = False
         if status == "pass" and args.commit and git_has_changes():
+            ensure_clean_working_tree(allowed_dirty_paths=files)
             git_commit(commit_msg)
             committed = True
 

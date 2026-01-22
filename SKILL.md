@@ -17,7 +17,7 @@ metadata:
 ## Default behavior
 - Base branch: develop (fallback: origin/develop)
 - Only checks changed *.py files
-- Requires clean working tree (to guarantee exactly one refactor commit)
+- Requires a clean working tree, or only pre-existing changes limited to the PR-changed Python files (to guarantee exactly one refactor commit)
 - Commit scope is AUTO-derived from changed files (can be overridden)
 
 ## How to run
@@ -34,6 +34,11 @@ Audit + autofix + Sonar gate + commit:
 
 Override scope:
 `& "$env:USERPROFILE\\.codex\\skills\\clean-code-pr-review\\.venv\\Scripts\\python.exe" "$env:USERPROFILE\\.codex\\skills\\clean-code-pr-review\\run.py" --commit --scope etl`
+
+## Sonar configuration
+- The calling project should provide `sonar-project.properties` (pysonar picks it up automatically).
+- Put `SONAR_TOKEN` into the calling project’s `.env` (the runner loads it from the CWD).
+- Optional overrides: pass `--sonar-host-url`, `--sonar-project-key`, `--sonar-sources`.
 
 ## Output contract
 The runner prints JSON with:
@@ -52,6 +57,6 @@ Exit codes:
 
 ## Procedure for Codex
 1) Run with --commit --sonar.
-2) If it fails with remaining violations, fix them per clean_code_rules.md and rerun.
+2) If it fails with remaining violations, fix them per clean_code_rules.md and rerun (it will tolerate a dirty tree only if the changes are limited to the PR-changed Python files).
 3) When status=pass, ensure the single refactor commit exists.
 4) Never fabricate results. Always rely on the script output.
