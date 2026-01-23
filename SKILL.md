@@ -18,37 +18,31 @@ metadata:
 - Base branch: develop (fallback: origin/develop)
 - Only checks changed *.py files
 - Requires a clean working tree, or only pre-existing changes limited to the PR-changed Python files (to guarantee exactly one refactor commit)
-- `--scope AUTO` (default) reviews all changed Python files; `--scope <package>` restricts the run to that package
-- Semantic checks are enabled by default; `--audit-only` generates semantic artifacts without gating, `--commit` gates on the filled ledger (disable with `--no-semantic`)
+- `--scope` is optional; when provided, restricts the run to that package (name or path)
+- Audit, Sonar, and Semantic are enabled by default (disable with `--no-audit`, `--no-sonar`, `--no-semantic`)
+- Commit-on-pass is enabled by default (disable with `--no-commit`)
 
 ## How to run
 Run via PowerShell using the skill’s local venv:
 
-Audit only:
-`& "$env:USERPROFILE\\.codex\\skills\\clean-code\\.venv\\Scripts\\python.exe" "$env:USERPROFILE\\.codex\\skills\\clean-code\\run.py" --audit-only`
+Audit + autofix + gates + commit (default):
+`& "$env:USERPROFILE\\.codex\\skills\\clean-code\\.venv\\Scripts\\python.exe" "$env:USERPROFILE\\.codex\\skills\\clean-code\\run.py"`
 
-Audit + autofix + commit:
-`& "$env:USERPROFILE\\.codex\\skills\\clean-code\\.venv\\Scripts\\python.exe" "$env:USERPROFILE\\.codex\\skills\\clean-code\\run.py" --commit`
-
-Audit + autofix + commit (semantic gate disabled):
-`& "$env:USERPROFILE\\.codex\\skills\\clean-code\\.venv\\Scripts\\python.exe" "$env:USERPROFILE\\.codex\\skills\\clean-code\\run.py" --commit --no-semantic`
+No commit:
+`& "$env:USERPROFILE\\.codex\\skills\\clean-code\\.venv\\Scripts\\python.exe" "$env:USERPROFILE\\.codex\\skills\\clean-code\\run.py" --no-commit`
 
 Restrict to a package (name or path):
-`& "$env:USERPROFILE\\.codex\\skills\\clean-code\\.venv\\Scripts\\python.exe" "$env:USERPROFILE\\.codex\\skills\\clean-code\\run.py" --commit --scope etl`
+`& "$env:USERPROFILE\\.codex\\skills\\clean-code\\.venv\\Scripts\\python.exe" "$env:USERPROFILE\\.codex\\skills\\clean-code\\run.py" --scope etl`
 
 ## Sonar configuration
 - The calling project should provide `sonar-project.properties` (pysonar picks it up automatically).
 - Put `SONAR_TOKEN` into the calling project’s `.env` (the runner loads it from the CWD).
-- Optional overrides: pass `--sonar-host-url`, `--sonar-project-key`, `--sonar-sources`.
-- PR-scoped gating: by default the skill evaluates only "new code" Quality Gate conditions (typically `new_*`) against `develop`. Override with `--sonar-gate-scope full` or `--sonar-reference-branch <branch>`.
-- Sonar is enabled by default; disable with `--no-sonar`.
+- The skill enforces the "new-code" gate against `develop`.
 
 ## Semantic gate
-- Enabled by default for `--commit` runs (disable with `--no-semantic`).
-- Enable explicitly with `--semantic` (useful when not running with `--commit`) to evaluate `SEMANTIC` rules from `clean_code_rules.yml`.
-- The runner writes a deterministic scaffold ledger (`semantic_ledger.yml`) and a prompt (`semantic_prompt.md`) to a stable temp folder by default (or `--semantic-out-dir`).
-- Codex (the agent) is expected to fill in `PASS|FAIL|NA` for each rule/file entry (use `NEEDS_HUMAN` only if truly undecidable) and rerun.
-- If you only want artifacts (no gating), use `--semantic --semantic-scaffold-only`.
+- Enabled by default (disable with `--no-semantic`).
+- The runner writes a deterministic scaffold ledger (`semantic_ledger.yml`) and a prompt (`semantic_prompt.md`) to a stable temp folder per git branch.
+- The calling agent is expected to fill in `PASS|FAIL|NA` for each rule/file entry (use `NEEDS_HUMAN` only if truly undecidable) and rerun.
 
 ## Output contract
 The runner prints JSON with:
