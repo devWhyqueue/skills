@@ -52,7 +52,9 @@ def default_semantic_out_dir() -> Path:
     semantic ledger and rerun without losing the file.
     """
     branch = git_current_branch()
-    safe = "".join(ch if ch.isalnum() or ch in {"-", "_", "."} else "_" for ch in branch)
+    safe = "".join(
+        ch if ch.isalnum() or ch in {"-", "_", "."} else "_" for ch in branch
+    )
     return Path(tempfile.gettempdir()) / f"clean-code-pr-review-semantic-{safe}"
 
 
@@ -313,11 +315,21 @@ def main() -> int:
     ap.add_argument("--audit-only", action="store_true")
     ap.add_argument("--commit", action="store_true")
     ap.add_argument("--max-iterations", type=int, default=2)
-    ap.add_argument(
+
+    semantic_group = ap.add_mutually_exclusive_group()
+    semantic_group.add_argument(
         "--semantic",
+        dest="semantic",
         action="store_true",
-        help="Generate a SEMANTIC rules compliance ledger (YAML) and gate on it.",
+        help="Enable SEMANTIC rules compliance ledger (YAML) and gate on it (default).",
     )
+    semantic_group.add_argument(
+        "--no-semantic",
+        dest="semantic",
+        action="store_false",
+        help="Disable semantic gate.",
+    )
+    ap.set_defaults(semantic=None)
     ap.add_argument(
         "--semantic-rules",
         default="clean_code_rules.yml",
@@ -383,6 +395,13 @@ def main() -> int:
     )
 
     args = ap.parse_args()
+    if args.semantic_scaffold_only and args.semantic is False:
+        raise RuntimeError("--semantic-scaffold-only conflicts with --no-semantic")
+
+    if args.semantic is None:
+        args.semantic = bool(args.commit) and not bool(args.audit_only)
+    if args.semantic_scaffold_only:
+        args.semantic = True
 
     try:
         fixed_files: List[str] = []
@@ -461,9 +480,8 @@ def main() -> int:
                                 run_sonar = False
 
                     if run_sonar:
-                        effective_sources = (
-                            args.sonar_sources
-                            or (package_dir.as_posix() if package_dir else "")
+                        effective_sources = args.sonar_sources or (
+                            package_dir.as_posix() if package_dir else ""
                         )
                         artifact_snapshot = snapshot_sonar_artifacts()
                         try:
@@ -527,7 +545,9 @@ def main() -> int:
                     if package_dir is not None
                     else derive_scope_from_files(files)
                 ),
-                "package": (package_dir.as_posix() if package_dir is not None else None),
+                "package": (
+                    package_dir.as_posix() if package_dir is not None else None
+                ),
                 "next_action": (
                     "Fix remaining violations (Codex should edit the files), then re-run this skill."
                     if status == "fail"
@@ -562,7 +582,11 @@ def main() -> int:
             else "Remaining violations require semantic refactor."
         )
 
-        scope = package_dir.name if package_dir is not None else derive_scope_from_files(files)
+        scope = (
+            package_dir.name
+            if package_dir is not None
+            else derive_scope_from_files(files)
+        )
 
         # Sonar gate (only after clean code errors are resolved)
         sonar_report = None
@@ -604,9 +628,8 @@ def main() -> int:
                             sonar_report = {"status": "pr_not_found", "branch": branch}
 
                 if not sonar_report:
-                    effective_sources = (
-                        args.sonar_sources
-                        or (package_dir.as_posix() if package_dir else "")
+                    effective_sources = args.sonar_sources or (
+                        package_dir.as_posix() if package_dir else ""
                     )
                     artifact_snapshot = snapshot_sonar_artifacts()
                     try:
@@ -680,7 +703,9 @@ def main() -> int:
                 if not args.semantic_scaffold_only:
                     ledger_path = semantic_out_dir / "semantic_ledger.yml"
                     semantic_validation = load_and_validate_ledger(
-                        ledger_path=ledger_path, files=files, rules_path=semantic_rules_path
+                        ledger_path=ledger_path,
+                        files=files,
+                        rules_path=semantic_rules_path,
                     )
                     semantic_report = {**semantic_report, **semantic_validation}
 

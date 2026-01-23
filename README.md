@@ -7,8 +7,8 @@ It enforces:
 - ruff autofix + formatting
 - SonarQube Quality Gate (via pysonar), PR-scoped by default (new code only)
 
-Optional:
-- Semantic gate scaffold (`--semantic`) produces `semantic_prompt.md` + `semantic_ledger.yml` for Codex/human review and gates on the filled ledger.
+Also enforces (by default for `--commit` runs):
+- Semantic gate scaffold produces `semantic_prompt.md` + `semantic_ledger.yml` for Codex/human review and gates on the filled ledger (disable with `--no-semantic`).
 
 ## Run
 Run via PowerShell using the skill’s local venv:
@@ -22,8 +22,8 @@ Restrict to a package (name or path):
 Audit + fix + commit:
 `& "$env:USERPROFILE\\.codex\\skills\\clean-code-pr-review\\.venv\\Scripts\\python.exe" "$env:USERPROFILE\\.codex\\skills\\clean-code-pr-review\\run.py" --commit`
 
-Audit + fix + commit + semantic gate:
-`& "$env:USERPROFILE\\.codex\\skills\\clean-code-pr-review\\.venv\\Scripts\\python.exe" "$env:USERPROFILE\\.codex\\skills\\clean-code-pr-review\\run.py" --commit --semantic`
+Audit + fix + commit (semantic gate disabled):
+`& "$env:USERPROFILE\\.codex\\skills\\clean-code-pr-review\\.venv\\Scripts\\python.exe" "$env:USERPROFILE\\.codex\\skills\\clean-code-pr-review\\run.py" --commit --no-semantic`
 
 PR-scoped Sonar gate (default, new code vs develop):
 `& "$env:USERPROFILE\\.codex\\skills\\clean-code-pr-review\\.venv\\Scripts\\python.exe" "$env:USERPROFILE\\.codex\\skills\\clean-code-pr-review\\run.py" --commit --sonar-gate-scope new-code --sonar-reference-branch develop`

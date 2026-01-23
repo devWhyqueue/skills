@@ -19,6 +19,7 @@ metadata:
 - Only checks changed *.py files
 - Requires a clean working tree, or only pre-existing changes limited to the PR-changed Python files (to guarantee exactly one refactor commit)
 - `--scope AUTO` (default) reviews all changed Python files; `--scope <package>` restricts the run to that package
+- Semantic gate is enabled by default for `--commit` runs; disable with `--no-semantic`
 
 ## How to run
 Run via PowerShell using the skill’s local venv:
@@ -29,8 +30,8 @@ Audit only:
 Audit + autofix + commit:
 `& "$env:USERPROFILE\\.codex\\skills\\clean-code-pr-review\\.venv\\Scripts\\python.exe" "$env:USERPROFILE\\.codex\\skills\\clean-code-pr-review\\run.py" --commit`
 
-Audit + autofix + commit + semantic gate:
-`& "$env:USERPROFILE\\.codex\\skills\\clean-code-pr-review\\.venv\\Scripts\\python.exe" "$env:USERPROFILE\\.codex\\skills\\clean-code-pr-review\\run.py" --commit --semantic`
+Audit + autofix + commit (semantic gate disabled):
+`& "$env:USERPROFILE\\.codex\\skills\\clean-code-pr-review\\.venv\\Scripts\\python.exe" "$env:USERPROFILE\\.codex\\skills\\clean-code-pr-review\\run.py" --commit --no-semantic`
 
 Restrict to a package (name or path):
 `& "$env:USERPROFILE\\.codex\\skills\\clean-code-pr-review\\.venv\\Scripts\\python.exe" "$env:USERPROFILE\\.codex\\skills\\clean-code-pr-review\\run.py" --commit --scope etl`
@@ -43,7 +44,8 @@ Restrict to a package (name or path):
 - Sonar is enabled by default; disable with `--no-sonar`.
 
 ## Semantic gate
-- Enable with `--semantic` to evaluate `SEMANTIC` rules from `clean_code_rules.yml`.
+- Enabled by default for `--commit` runs (disable with `--no-semantic`).
+- Enable explicitly with `--semantic` (useful when not running with `--commit`) to evaluate `SEMANTIC` rules from `clean_code_rules.yml`.
 - The runner writes a deterministic scaffold ledger (`semantic_ledger.yml`) and a prompt (`semantic_prompt.md`) to a stable temp folder by default (or `--semantic-out-dir`).
 - Codex (the agent) is expected to fill in `PASS|FAIL|NA` for each rule/file entry (use `NEEDS_HUMAN` only if truly undecidable) and rerun.
 - If you only want artifacts (no gating), use `--semantic --semantic-scaffold-only`.
