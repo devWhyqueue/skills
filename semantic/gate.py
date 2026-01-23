@@ -2,10 +2,13 @@ from __future__ import annotations
 
 import tempfile
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
+
+import yaml
 
 from git import current_branch
 from .ledger import load_and_validate_ledger
+from .prompt import build_index_prompt
 from .scaffold import run_scaffold
 
 SEMANTIC_MAX_DIFF_CHARS = 120_000
@@ -54,4 +57,64 @@ def run_semantic_gate_if_enabled(
     semantic_validation = load_and_validate_ledger(
         ledger_path=ledger_path, files=files, rules_path=SEMANTIC_RULES_PATH
     )
+    _rewrite_index_prompt_for_next_file(
+        ledger_path=ledger_path, prompt_path=semantic_out_dir / "semantic_prompt.md"
+    )
     return {**semantic_report, **semantic_validation}
+
+
+def _rewrite_index_prompt_for_next_file(
+    *, ledger_path: Path, prompt_path: Path
+) -> None:
+    if not ledger_path.exists():
+        return
+
+    raw_any = yaml.safe_load(
+        ledger_path.read_text(encoding="utf-8", errors="replace")
+    ) or {}
+    raw = raw_any if isinstance(raw_any, dict) else {}
+    raw_files = raw.get("files", [])
+    if not isinstance(raw_files, list):
+        return
+
+    if not any(
+        isinstance(entry, dict) and isinstance(entry.get("ledger_path"), str)
+        for entry in raw_files
+    ):
+        return
+
+    meta = raw.get("meta") if isinstance(raw.get("meta"), dict) else {}
+    base_ref = str(meta.get("base_ref", "")).strip()
+    head_ref = str(meta.get("head_ref", "")).strip()
+
+    next_entry = _select_next_file_entry(raw_files)
+    files_info: list[dict[str, str]] = []
+    if isinstance(next_entry, dict):
+        files_info.append(
+            {
+                "path": str(next_entry.get("path", "")).strip(),
+                "ledger_path": str(next_entry.get("ledger_path", "")).strip(),
+                "prompt_path": str(next_entry.get("prompt_path", "")).strip(),
+            }
+        )
+
+    prompt_path.write_text(
+        build_index_prompt(
+            files_info=files_info,
+            base_ref=base_ref,
+            head_ref=head_ref,
+        ),
+        encoding="utf-8",
+    )
+
+
+def _select_next_file_entry(
+    files: list[Any],
+) -> Optional[dict[str, Any]]:
+    for entry in files:
+        if not isinstance(entry, dict):
+            continue
+        status = str(entry.get("status", "")).strip().lower()
+        if status in {"pending", "requires_reviewer", "fail"}:
+            return entry
+    return None

@@ -140,21 +140,24 @@ def build_index_prompt(
         f"Base ref: {base_ref}",
         f"Head ref: {head_ref}",
         "",
-        "This run now writes one ledger per file to avoid mass approval.",
-        "Review each file ledger and prompt below, then re-run the skill.",
+        "This run intentionally shows one file at a time to avoid mass approval.",
+        "Review the ledger and prompt below, then re-run the skill for the next file.",
         "",
         "## Files",
     ]
-    for entry in files_info:
-        path = entry.get("path", "")
-        ledger = entry.get("ledger_path", "")
-        prompt = entry.get("prompt_path", "")
-        lines.extend(
-            [
-                f"- {path}",
-                f"  - ledger: {ledger}",
-                f"  - prompt: {prompt}",
-            ]
-        )
+    if files_info:
+        for entry in files_info:
+            path = entry.get("path", "")
+            ledger = entry.get("ledger_path", "")
+            prompt = entry.get("prompt_path", "")
+            lines.extend(
+                [
+                    f"- {path}",
+                    f"  - ledger: {ledger}",
+                    f"  - prompt: {prompt}",
+                ]
+            )
+    else:
+        lines.append("- (all files reviewed)")
     lines.append("")
     return "\n".join(lines)

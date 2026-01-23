@@ -8,7 +8,7 @@ It enforces:
 - SonarQube Quality Gate (via pysonar), new-code scoped by default
 
 Also enforces (enabled by default):
-- Semantic gate scaffold produces an index (`semantic_prompt.md` + `semantic_ledger.yml`) plus per-file ledgers/prompts under `ledgers/` and `prompts/`. It gates on the evaluated per-file ledgers (disable with `--no-semantic`).
+- Semantic gate scaffold produces an index (`semantic_prompt.md` + `semantic_ledger.yml`) plus per-file ledgers/prompts under `ledgers/` and `prompts/`. The index prompt shows one file at a time; rerun the skill to advance. It gates on the evaluated per-file ledgers (disable with `--no-semantic`).
 
 ## Run
 Run via PowerShell using the skill’s local venv:
