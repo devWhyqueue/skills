@@ -16,6 +16,10 @@ from semantic_gate import load_and_validate_ledger, run_semantic_scaffold
 from sonar import fetch_project_pull_requests, run_sonar_gate_check
 
 
+def default_rules_path() -> str:
+    return str(Path(__file__).resolve().with_name("clean_code_rules.yml"))
+
+
 def load_env_file(path: Path) -> None:
     """Load simple KEY=VALUE lines into os.environ if missing."""
     if not path.exists():
@@ -56,6 +60,47 @@ def default_semantic_out_dir() -> Path:
         ch if ch.isalnum() or ch in {"-", "_", "."} else "_" for ch in branch
     )
     return Path(tempfile.gettempdir()) / f"clean-code-semantic-{safe}"
+
+
+def run_semantic_gate_if_enabled(
+    *,
+    args,
+    files: List[str],
+    base_ref: str,
+    head_ref: str,
+) -> Optional[Dict]:
+    if not args.semantic or not files:
+        return None
+
+    semantic_rules_path = Path(args.semantic_rules)
+    if not semantic_rules_path.exists():
+        raise RuntimeError(
+            f"Semantic gate enabled but rules file not found: {semantic_rules_path}"
+        )
+
+    semantic_out_dir = (
+        Path(args.semantic_out_dir)
+        if str(args.semantic_out_dir).strip()
+        else default_semantic_out_dir()
+    )
+
+    semantic_report = run_semantic_scaffold(
+        base_ref=base_ref,
+        head_ref=head_ref,
+        files=files,
+        rules_path=semantic_rules_path,
+        max_diff_chars=int(args.semantic_max_diff_chars),
+        out_dir=semantic_out_dir,
+    )
+
+    if args.semantic_scaffold_only:
+        return semantic_report
+
+    ledger_path = semantic_out_dir / "semantic_ledger.yml"
+    semantic_validation = load_and_validate_ledger(
+        ledger_path=ledger_path, files=files, rules_path=semantic_rules_path
+    )
+    return {**semantic_report, **semantic_validation}
 
 
 def git_status_entries() -> List[tuple[str, str]]:
@@ -332,7 +377,7 @@ def main() -> int:
     ap.set_defaults(semantic=None)
     ap.add_argument(
         "--semantic-rules",
-        default="clean_code_rules.yml",
+        default=default_rules_path(),
         help="Path to rules YAML for SEMANTIC gate (default: clean_code_rules.yml).",
     )
     ap.add_argument(
@@ -399,7 +444,9 @@ def main() -> int:
         raise RuntimeError("--semantic-scaffold-only conflicts with --no-semantic")
 
     if args.semantic is None:
-        args.semantic = bool(args.commit) and not bool(args.audit_only)
+        args.semantic = True
+        if args.audit_only:
+            args.semantic_scaffold_only = True
     if args.semantic_scaffold_only:
         args.semantic = True
 
@@ -532,12 +579,56 @@ def main() -> int:
                             status = "fail"
                             summary = f"SonarQube Quality Gate failed: {gate.status}"
 
+            semantic_report = None
+            if status == "pass":
+                try:
+                    semantic_report = run_semantic_gate_if_enabled(
+                        args=args,
+                        files=files,
+                        base_ref=args.base,
+                        head_ref=args.head,
+                    )
+
+                    if (
+                        not args.semantic_scaffold_only
+                        and isinstance(semantic_report, dict)
+                        and str(semantic_report.get("status", "")).strip()
+                        not in {"", "pass"}
+                    ):
+                        sem_status = str(semantic_report.get("status", "")).strip()
+                        sem_summary = semantic_report.get("summary", {})
+                        sem_fails = int(sem_summary.get("fails", 0) or 0)
+                        sem_needs = int(sem_summary.get("needs_human", 0) or 0)
+                        ledger_path = semantic_report.get("ledger_path")
+
+                        status = "fail"
+                        if sem_status == "pending":
+                            summary = (
+                                "Semantic ledger pending evaluation. "
+                                f"Review '{ledger_path}', set PASS/FAIL/NA for each entry "
+                                "(NEEDS_HUMAN only if truly undecidable), then re-run."
+                            )
+                        elif sem_status == "requires_reviewer":
+                            summary = (
+                                f"Semantic gate requires reviewer input: fails={sem_fails}, needs_human={sem_needs} "
+                                f"(ledger: {ledger_path})."
+                            )
+                        else:
+                            summary = (
+                                f"Semantic gate failed: fails={sem_fails}, needs_human={sem_needs} "
+                                f"(ledger: {ledger_path})."
+                            )
+                except Exception as e:
+                    status = "fail"
+                    summary = f"Semantic gate error: {type(e).__name__}: {e}"
+
             report = {
                 "status": status,
                 "changed_files": files,
                 "fixed_files": [],
                 "violations": [asdict(v) for v in violations],
                 "sonar": sonar_report,
+                "semantic": semantic_report,
                 "commit": {"attempted": False, "created": False, "message": None},
                 "summary": summary,
                 "scope": (

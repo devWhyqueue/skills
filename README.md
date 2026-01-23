@@ -7,8 +7,8 @@ It enforces:
 - ruff autofix + formatting
 - SonarQube Quality Gate (via pysonar), PR-scoped by default (new code only)
 
-Also enforces (by default for `--commit` runs):
-- Semantic gate scaffold produces `semantic_prompt.md` + `semantic_ledger.yml` for Codex/human review and gates on the filled ledger (disable with `--no-semantic`).
+Also enforces (enabled by default):
+- Semantic gate scaffold produces `semantic_prompt.md` + `semantic_ledger.yml` for Codex/human review; it gates on the filled ledger for `--commit` runs (disable with `--no-semantic`).
 
 ## Run
 Run via PowerShell using the skill’s local venv:

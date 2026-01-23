@@ -19,7 +19,7 @@ metadata:
 - Only checks changed *.py files
 - Requires a clean working tree, or only pre-existing changes limited to the PR-changed Python files (to guarantee exactly one refactor commit)
 - `--scope AUTO` (default) reviews all changed Python files; `--scope <package>` restricts the run to that package
-- Semantic gate is enabled by default for `--commit` runs; disable with `--no-semantic`
+- Semantic checks are enabled by default; `--audit-only` generates semantic artifacts without gating, `--commit` gates on the filled ledger (disable with `--no-semantic`)
 
 ## How to run
 Run via PowerShell using the skill’s local venv:
