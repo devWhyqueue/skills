@@ -86,11 +86,19 @@ def _normalize_evidence_item(item: Any) -> dict[str, Any] | None:
     return {"symbol": symbol, "lines": {"start": start, "end": end}, "message": message}
 
 
+def _is_placeholder_message(message: str, *, rule: Rule) -> bool:
+    return message.strip() in {
+        f"Pending semantic review for {rule.id}: {rule.statement}",
+        f"Missing evidence; provide symbol, line range, and message for {rule.id}.",
+    }
+
+
 def normalize_ledger(
     *,
     ledger: dict[str, Any],
     files: list[str],
     rules: list[Rule],
+    require_pass_evidence: bool = True,
 ) -> dict[str, Any]:
     rule_ids = [r.id for r in rules]
     rules_by_id = {r.id: r for r in rules}
@@ -143,6 +151,22 @@ def normalize_ledger(
                         "message": f"Missing evidence; provide symbol, line range, and message for {rid}.",
                     }
                 ]
+            if status == "PASS" and require_pass_evidence:
+                if not evidence or all(
+                    _is_placeholder_message(item.get("message", ""), rule=rules_by_id[rid])
+                    for item in evidence
+                ):
+                    status = "NEEDS_HUMAN"
+                    evidence = [
+                        {
+                            "symbol": "<module>",
+                            "lines": {"start": 1, "end": max(1, int(line_count))},
+                            "message": (
+                                "PASS requires evidence with a concrete symbol and line range; "
+                                f"replace the scaffold placeholder for {rid}."
+                            ),
+                        }
+                    ]
 
             if status == "FAIL":
                 fails += 1
@@ -167,13 +191,23 @@ def normalize_ledger(
     }
 
 
-def load_and_validate_ledger(
+def _looks_like_index_ledger(raw: dict[str, Any]) -> bool:
+    raw_files = raw.get("files", [])
+    if not isinstance(raw_files, list) or not raw_files:
+        return False
+    return any(
+        isinstance(entry, dict) and isinstance(entry.get("ledger_path"), str)
+        for entry in raw_files
+    )
+
+
+def _load_and_validate_file_ledger(
     *,
     ledger_path: Path,
     files: list[str],
-    rules_path: Path,
+    rules: list[Rule],
+    meta: dict[str, Any],
 ) -> dict[str, Any]:
-    rules = load_rules(rules_path)
     raw_any = (
         yaml.safe_load(ledger_path.read_text(encoding="utf-8", errors="replace")) or {}
     )
@@ -181,8 +215,8 @@ def load_and_validate_ledger(
 
     normalized = normalize_ledger(ledger=raw, files=files, rules=rules)
 
-    meta = raw.get("meta") if isinstance(raw.get("meta"), dict) else {}
-    phase = str(meta.get("phase", "")).strip().lower()
+    ledger_meta = raw.get("meta") if isinstance(raw.get("meta"), dict) else {}
+    phase = str(ledger_meta.get("phase", "")).strip().lower()
 
     any_reviewed = any(
         str(rule.get("status", "")).strip().upper() in {"PASS", "FAIL", "NA"}
@@ -198,7 +232,7 @@ def load_and_validate_ledger(
     if phase not in {"scaffold", "evaluated"}:
         phase = "evaluated" if any_reviewed else "scaffold"
 
-    normalized["meta"] = {**(meta if isinstance(meta, dict) else {}), "phase": phase}
+    normalized["meta"] = {**meta, **ledger_meta, "phase": phase}
     ledger_path.write_text(dump_yaml(normalized), encoding="utf-8")
 
     fails = int(normalized.get("summary", {}).get("fails", 0) or 0)
@@ -217,4 +251,131 @@ def load_and_validate_ledger(
         "status": status,
         "ledger_path": posix(ledger_path),
         "summary": normalized["summary"],
+        "files": normalized.get("files", []),
     }
+
+
+def _load_and_validate_index_ledger(
+    *,
+    ledger_path: Path,
+    files: list[str],
+    rules: list[Rule],
+    rules_path: Path,
+    raw: dict[str, Any],
+) -> dict[str, Any]:
+    meta = raw.get("meta") if isinstance(raw.get("meta"), dict) else {}
+    raw_files = raw.get("files", [])
+    if not isinstance(raw_files, list):
+        raw_files = []
+
+    file_entries: list[dict[str, Any]] = []
+    fails = 0
+    needs_human = 0
+    overall_status = "pass"
+
+    expected_paths = set(files)
+    for entry in raw_files:
+        if not isinstance(entry, dict):
+            continue
+        path = str(entry.get("path", "")).strip()
+        ledger_ref = str(entry.get("ledger_path", "")).strip()
+        prompt_ref = str(entry.get("prompt_path", "")).strip()
+        if not path or not ledger_ref:
+            continue
+        expected_paths.discard(path)
+
+        file_ledger_path = Path(ledger_ref)
+        if not file_ledger_path.exists():
+            file_ledger_path.parent.mkdir(parents=True, exist_ok=True)
+            file_ledger = new_ledger(
+                rules_path=rules_path,
+                base_ref=str(meta.get("base_ref", "")),
+                head_ref=str(meta.get("head_ref", "")),
+                files=[path],
+                rules=rules,
+            )
+            normalized = normalize_ledger(
+                ledger=file_ledger, files=[path], rules=rules
+            )
+            normalized["meta"] = file_ledger["meta"]
+            file_ledger_path.write_text(dump_yaml(normalized), encoding="utf-8")
+
+        file_result = _load_and_validate_file_ledger(
+            ledger_path=file_ledger_path, files=[path], rules=rules, meta=meta
+        )
+
+        file_status = file_result["status"]
+        file_summary = file_result["summary"]
+        fails += int(file_summary.get("fails", 0) or 0)
+        needs_human += int(file_summary.get("needs_human", 0) or 0)
+
+        if file_status == "pending":
+            overall_status = "pending"
+        elif file_status == "requires_reviewer" and overall_status == "pass":
+            overall_status = "requires_reviewer"
+        elif file_status == "fail":
+            overall_status = "fail"
+
+        file_entries.append(
+            {
+                "path": path,
+                "ledger_path": ledger_ref,
+                "prompt_path": prompt_ref,
+                "status": file_status,
+                "summary": file_summary,
+            }
+        )
+
+    for missing_path in sorted(expected_paths):
+        file_entries.append(
+            {
+                "path": missing_path,
+                "ledger_path": "",
+                "prompt_path": "",
+                "status": "pending",
+                "summary": {"fails": 0, "needs_human": 0},
+            }
+        )
+        overall_status = "pending"
+
+    phase = "evaluated" if overall_status != "pending" else "scaffold"
+    normalized_index = {
+        "version": int(raw.get("version", 1) or 1),
+        "meta": {**meta, "phase": phase},
+        "summary": {"fails": fails, "needs_human": needs_human},
+        "files": file_entries,
+    }
+    ledger_path.write_text(dump_yaml(normalized_index), encoding="utf-8")
+
+    return {
+        "status": overall_status,
+        "ledger_path": posix(ledger_path),
+        "summary": normalized_index["summary"],
+    }
+
+
+def load_and_validate_ledger(
+    *,
+    ledger_path: Path,
+    files: list[str],
+    rules_path: Path,
+) -> dict[str, Any]:
+    rules = load_rules(rules_path)
+    raw_any = (
+        yaml.safe_load(ledger_path.read_text(encoding="utf-8", errors="replace")) or {}
+    )
+    raw = raw_any if isinstance(raw_any, dict) else {}
+
+    if _looks_like_index_ledger(raw):
+        return _load_and_validate_index_ledger(
+            ledger_path=ledger_path,
+            files=files,
+            rules=rules,
+            rules_path=rules_path,
+            raw=raw,
+        )
+
+    meta = raw.get("meta") if isinstance(raw.get("meta"), dict) else {}
+    return _load_and_validate_file_ledger(
+        ledger_path=ledger_path, files=files, rules=rules, meta=meta
+    )

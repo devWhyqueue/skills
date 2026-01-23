@@ -31,7 +31,7 @@ def semantic_failure_summary(semantic_report: dict[str, Any]) -> Optional[str]:
     if sem_status == "pending":
         return (
             "Semantic ledger pending evaluation. "
-            f"Review '{ledger_path}', set PASS/FAIL/NA for each entry "
+            f"Review '{ledger_path}' and the per-file ledgers it references, set PASS/FAIL/NA "
             "(NEEDS_HUMAN only if truly undecidable), then re-run."
         )
     if sem_status == "requires_reviewer":
@@ -168,7 +168,7 @@ def _full_run(args: Any) -> int:
                 if (
                     status == "fail"
                     and isinstance(semantic_report, dict)
-                    and semantic_report.get("status") == "requires_human"
+                    and semantic_report.get("status") in {"requires_reviewer", "pending"}
                 )
                 else "Fix remaining violations (Codex should edit the files), then re-run this skill."
             )

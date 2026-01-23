@@ -41,8 +41,8 @@ Restrict to a package (name or path):
 
 ## Semantic gate
 - Enabled by default (disable with `--no-semantic`).
-- The runner writes a deterministic scaffold ledger (`semantic_ledger.yml`) and a prompt (`semantic_prompt.md`) to a stable temp folder per git branch.
-- The calling agent is expected to fill in `PASS|FAIL|NA` for each rule/file entry (use `NEEDS_HUMAN` only if truly undecidable) and rerun.
+- The runner writes an index ledger (`semantic_ledger.yml`) and prompt (`semantic_prompt.md`) plus per-file ledgers/prompts under `ledgers/` and `prompts/` in a stable temp folder per git branch.
+- The calling agent is expected to fill in `PASS|FAIL|NA` for each rule entry in every per-file ledger (use `NEEDS_HUMAN` only if truly undecidable) and rerun.
 
 ## Output contract
 The runner prints JSON with:
