@@ -10,6 +10,7 @@ from git import current_branch
 from .ledger import load_and_validate_ledger
 from .prompt import build_index_prompt
 from .scaffold import run_scaffold
+from .utils import safe_slug
 
 SEMANTIC_MAX_DIFF_CHARS = 120_000
 SEMANTIC_RULES_PATH = Path(__file__).resolve().parent.parent / "clean_code_rules.yml"
@@ -44,22 +45,44 @@ def run_semantic_gate_if_enabled(
 
     semantic_out_dir = default_semantic_out_dir()
 
-    semantic_report = run_scaffold(
-        base_ref=base_ref,
-        head_ref=head_ref,
-        files=files,
-        rules_path=SEMANTIC_RULES_PATH,
-        max_diff_chars=SEMANTIC_MAX_DIFF_CHARS,
-        out_dir=semantic_out_dir,
+    next_file = _select_next_file(
+        files=files, out_dir=semantic_out_dir, rules_path=SEMANTIC_RULES_PATH
     )
+    if next_file is not None:
+        semantic_report = run_scaffold(
+            base_ref=base_ref,
+            head_ref=head_ref,
+            files=[next_file],
+            rules_path=SEMANTIC_RULES_PATH,
+            max_diff_chars=SEMANTIC_MAX_DIFF_CHARS,
+            out_dir=semantic_out_dir,
+        )
+    else:
+        semantic_report = {
+            "status": "pass",
+            "ledger_path": str(semantic_out_dir / "semantic_ledger.yml"),
+            "ledger_template_path": str(
+                semantic_out_dir / "semantic_ledger.template.yml"
+            ),
+            "prompt_path": str(semantic_out_dir / "semantic_prompt.md"),
+            "summary": {"fails": 0, "needs_human": 0},
+            "semantic_rules": [],
+        }
 
     ledger_path = semantic_out_dir / "semantic_ledger.yml"
     semantic_validation = load_and_validate_ledger(
         ledger_path=ledger_path, files=files, rules_path=SEMANTIC_RULES_PATH
     )
-    _rewrite_index_prompt_for_next_file(
-        ledger_path=ledger_path, prompt_path=semantic_out_dir / "semantic_prompt.md"
-    )
+    if next_file is None:
+        prompt_path = semantic_out_dir / "semantic_prompt.md"
+        prompt_path.write_text(
+            build_index_prompt(files_info=[], base_ref=base_ref, head_ref=head_ref),
+            encoding="utf-8",
+        )
+    else:
+        _rewrite_index_prompt_for_next_file(
+            ledger_path=ledger_path, prompt_path=semantic_out_dir / "semantic_prompt.md"
+        )
     return {**semantic_report, **semantic_validation}
 
 
@@ -106,6 +129,23 @@ def _rewrite_index_prompt_for_next_file(
         ),
         encoding="utf-8",
     )
+
+
+def _select_next_file(
+    *, files: list[str], out_dir: Path, rules_path: Path
+) -> Optional[str]:
+    ledger_dir = out_dir / "ledgers"
+    for path in files:
+        ledger_path = ledger_dir / f"{safe_slug(path)}.yml"
+        if not ledger_path.exists():
+            return path
+        result = load_and_validate_ledger(
+            ledger_path=ledger_path, files=[path], rules_path=rules_path
+        )
+        status = str(result.get("status", "")).strip().lower()
+        if status != "pass":
+            return path
+    return None
 
 
 def _select_next_file_entry(

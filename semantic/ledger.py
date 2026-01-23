@@ -6,7 +6,7 @@ from typing import Any
 import yaml
 
 from semantic.rules import Rule, load_rules
-from semantic.utils import file_line_count, posix, utc_now_iso
+from semantic.utils import file_line_count, posix, safe_slug, utc_now_iso
 
 
 ALLOWED_STATUSES = {"PASS", "FAIL", "NEEDS_HUMAN", "NA"}
@@ -264,9 +264,71 @@ def _load_and_validate_index_ledger(
     raw: dict[str, Any],
 ) -> dict[str, Any]:
     meta = raw.get("meta") if isinstance(raw.get("meta"), dict) else {}
+    mode = str(meta.get("mode", "")).strip().lower()
+    sequential_mode = mode in {"single_file", "sequential"}
+    ledger_dir_raw = str(meta.get("ledger_dir", "")).strip()
+    ledger_dir = Path(ledger_dir_raw) if ledger_dir_raw else ledger_path.parent / "ledgers"
     raw_files = raw.get("files", [])
     if not isinstance(raw_files, list):
         raw_files = []
+
+    if sequential_mode:
+        file_entries: list[dict[str, Any]] = []
+        fails = 0
+        needs_human = 0
+        overall_status = "pass"
+        missing_count = 0
+
+        for path in files:
+            file_ledger_path = ledger_dir / f"{safe_slug(path)}.yml"
+            if not file_ledger_path.exists():
+                missing_count += 1
+                continue
+
+            file_result = _load_and_validate_file_ledger(
+                ledger_path=file_ledger_path, files=[path], rules=rules, meta=meta
+            )
+
+            file_status = file_result["status"]
+            file_summary = file_result["summary"]
+            fails += int(file_summary.get("fails", 0) or 0)
+            needs_human += int(file_summary.get("needs_human", 0) or 0)
+
+            if file_status == "pending":
+                overall_status = "pending"
+            elif file_status == "requires_reviewer" and overall_status == "pass":
+                overall_status = "requires_reviewer"
+            elif file_status == "fail":
+                overall_status = "fail"
+
+            prompt_path = ledger_dir.parent / "prompts" / f"{safe_slug(path)}.md"
+            file_entries.append(
+                {
+                    "path": path,
+                    "ledger_path": posix(file_ledger_path),
+                    "prompt_path": posix(prompt_path) if prompt_path.exists() else "",
+                    "status": file_status,
+                    "summary": file_summary,
+                }
+            )
+
+        if missing_count and overall_status == "pass":
+            overall_status = "pending"
+
+        phase = "evaluated" if overall_status != "pending" else "scaffold"
+        normalized_index = {
+            "version": int(raw.get("version", 1) or 1),
+            "meta": {**meta, "phase": phase, "mode": mode or "single_file", "ledger_dir": posix(ledger_dir)},
+            "summary": {"fails": fails, "needs_human": needs_human},
+            "files": file_entries,
+        }
+        ledger_path.write_text(dump_yaml(normalized_index), encoding="utf-8")
+
+        return {
+            "status": overall_status,
+            "ledger_path": posix(ledger_path),
+            "summary": normalized_index["summary"],
+        }
 
     file_entries: list[dict[str, Any]] = []
     fails = 0

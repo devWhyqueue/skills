@@ -83,6 +83,8 @@ def run_scaffold(
             "rules_path": posix(rules_path),
             "base_ref": base_ref,
             "head_ref": head_ref,
+            "mode": "single_file",
+            "ledger_dir": posix(ledger_dir),
             "phase": "scaffold",
         },
         "summary": {"fails": 0, "needs_human": 0},

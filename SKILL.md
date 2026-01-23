@@ -42,7 +42,7 @@ Restrict to a package (name or path):
 ## Semantic gate
 - Enabled by default (disable with `--no-semantic`).
 - The runner writes an index ledger (`semantic_ledger.yml`) and prompt (`semantic_prompt.md`) plus per-file ledgers/prompts under `ledgers/` and `prompts/` in a stable temp folder per git branch.
-- The index prompt shows one file at a time; evaluate the referenced per-file ledger and re-run to advance.
+- It generates only one per-file ledger/prompt per run, and the index prompt shows one file at a time; evaluate the referenced per-file ledger and re-run to advance.
 - The calling agent is expected to fill in `PASS|FAIL|NA` for each rule entry in every per-file ledger (use `NEEDS_HUMAN` only if truly undecidable) and rerun.
 
 ## Output contract
