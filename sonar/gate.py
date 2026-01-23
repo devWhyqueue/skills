@@ -14,6 +14,16 @@ DEFAULT_REFERENCE_BRANCH = "develop"
 DEFAULT_GATE_SCOPE = "new-code"
 
 
+def _strip_embedded_property(value: str, *, property_key: str) -> str:
+    """
+    Some calling projects place full Sonar property lines into `.env`, e.g.
+    `SONAR_HOST_URL=sonar.host.url=https://...`. Normalize those values.
+    """
+    v = (value or "").strip()
+    prefix = f"{property_key}="
+    return v[len(prefix) :].strip() if v.startswith(prefix) else v
+
+
 def run_sonar_gate(
     *,
     enabled: bool,
@@ -34,12 +44,22 @@ def run_sonar_gate(
     branch = current_branch()
     reference_branch = DEFAULT_REFERENCE_BRANCH
 
-    effective_host_url = (os.getenv("SONAR_HOST_URL") or "").strip() or props.get(
-        "sonar.host.url", ""
+    env_host_url = _strip_embedded_property(
+        os.getenv("SONAR_HOST_URL") or "", property_key="sonar.host.url"
     )
-    effective_project_key = (os.getenv("SONAR_PROJECT_KEY") or "").strip() or props.get(
-        "sonar.projectKey", ""
+    env_project_key = _strip_embedded_property(
+        os.getenv("SONAR_PROJECT_KEY") or "", property_key="sonar.projectKey"
     )
+
+    prop_host_url = _strip_embedded_property(
+        props.get("sonar.host.url", ""), property_key="sonar.host.url"
+    )
+    prop_project_key = _strip_embedded_property(
+        props.get("sonar.projectKey", ""), property_key="sonar.projectKey"
+    )
+
+    effective_host_url = env_host_url.strip() or prop_host_url.strip()
+    effective_project_key = env_project_key.strip() or prop_project_key.strip()
     if not effective_host_url or not effective_project_key:
         return (
             {"status": "misconfigured"},

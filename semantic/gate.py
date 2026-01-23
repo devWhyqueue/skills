@@ -5,7 +5,8 @@ from pathlib import Path
 from typing import Optional
 
 from git import current_branch
-from semantic import load_and_validate_ledger, run_scaffold
+from .ledger import load_and_validate_ledger
+from .scaffold import run_scaffold
 
 SEMANTIC_MAX_DIFF_CHARS = 120_000
 SEMANTIC_RULES_PATH = Path(__file__).resolve().parent.parent / "clean_code_rules.yml"

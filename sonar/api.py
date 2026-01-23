@@ -2,14 +2,12 @@ from __future__ import annotations
 
 import ast
 import sys
-import tempfile
-import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from .http import _http_get_json, _http_get_json_with_params
 from .models import SonarGateResult, SonarIssue
-from .props import discover_report_task, read_project_properties, resolve_path
+from .props import read_project_properties
 from .scan import run_scan
 
 
@@ -279,7 +277,6 @@ def run_gate_check(
     sources: Optional[str] = None,
 ) -> SonarGateResult:
     extra_args = [
-        "--no-sonar-qualitygate-wait",
         f"-Dsonar.python.version={sys.version_info.major}.{sys.version_info.minor}",
     ]
     props = read_project_properties()
@@ -293,72 +290,38 @@ def run_gate_check(
             "`sonar.host.url` and `sonar.projectKey`, or pass --sonar-host-url / --sonar-project-key."
         )
 
-    with tempfile.TemporaryDirectory(prefix="clean-code-sonar-") as temp_dir:
-        temp_path = Path(temp_dir)
-        scanner_working_directory = temp_path / ".scannerwork"
-        scanner_metadata_path = temp_path / "report-task.txt"
+    run_scan(
+        token=token,
+        branch=branch,
+        reference_branch=reference_branch,
+        scanner_metadata_path=None,
+        scanner_working_directory=None,
+        pull_request_key=pull_request_key,
+        pull_request_branch=pull_request_branch,
+        pull_request_base=pull_request_base,
+        host_url=effective_host_url,
+        project_key=effective_project_key,
+        sources=effective_sources,
+        extra_args=extra_args,
+    )
 
-        p = run_scan(
-            token=token,
-            branch=branch,
-            reference_branch=reference_branch,
-            scanner_metadata_path=scanner_metadata_path,
-            scanner_working_directory=scanner_working_directory,
-            pull_request_key=pull_request_key,
-            pull_request_branch=pull_request_branch,
-            pull_request_base=pull_request_base,
-            host_url=effective_host_url,
-            project_key=effective_project_key,
-            sources=effective_sources,
-            extra_args=extra_args,
-        )
+    gate = fetch_quality_gate(effective_host_url, token, effective_project_key, branch)
+    project_status = gate.get("projectStatus", {})
+    raw_status = project_status.get("status", "NONE")
+    conditions = project_status.get("conditions", [])
+    status, scoped_conditions = _evaluate_gate_status(conditions, scope=gate_scope)
 
-        base_dir = Path.cwd()
-        project_base = props.get("sonar.projectBaseDir")
-        if project_base:
-            base_dir = resolve_path(project_base, base_dir=base_dir)
-
-        report, tried_paths = discover_report_task(
-            base_dir=base_dir,
-            props=props,
-            scanner_metadata_path=scanner_metadata_path,
-            scanner_working_directory=scanner_working_directory,
-            temp_dir=temp_path,
-        )
-        if report is None:
-            tried = "\n".join(f"- {c}" for c in tried_paths)
-            raise RuntimeError(
-                "Missing report-task.txt (pysonar output). Tried:\n"
-                f"{tried}\n"
-                f"pysonar exit={p.returncode}\nSTDOUT:\n{p.stdout}\nSTDERR:\n{p.stderr}"
+    new_issues: List[SonarIssue] = []
+    issues_stats: Dict[str, int] = {}
+    if fetch_new_code_issues:
+        if pull_request_key:
+            new_issues, issues_stats = fetch_pull_request_issues(
+                effective_host_url, token, effective_project_key, pull_request_key
             )
-        ce_task_url = report.get("ceTaskUrl")
-        if not ce_task_url:
-            raise RuntimeError("report-task.txt missing ceTaskUrl")
-
-        analysis_id = wait_for_compute_engine(ce_task_url, token)
-
-        server_url = report.get("serverUrl") or effective_host_url
-        report_project_key = report.get("projectKey") or effective_project_key
-        gate = fetch_quality_gate(
-            server_url, token, report_project_key, branch, analysis_id=analysis_id
-        )
-        project_status = gate.get("projectStatus", {})
-        raw_status = project_status.get("status", "NONE")
-        conditions = project_status.get("conditions", [])
-        status, scoped_conditions = _evaluate_gate_status(conditions, scope=gate_scope)
-
-        new_issues: List[SonarIssue] = []
-        issues_stats: Dict[str, int] = {}
-        if fetch_new_code_issues:
-            if pull_request_key:
-                new_issues, issues_stats = fetch_pull_request_issues(
-                    server_url, token, report_project_key, pull_request_key
-                )
-            else:
-                new_issues, issues_stats = fetch_new_issues(
-                    server_url, token, report_project_key, branch
-                )
+        else:
+            new_issues, issues_stats = fetch_new_issues(
+                effective_host_url, token, effective_project_key, branch
+            )
 
     return SonarGateResult(
         status=status,
