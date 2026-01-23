@@ -8,7 +8,7 @@ metadata:
 
 ## What this skill does
 - Computes the diff between the current branch and develop
-- Audits changed Python files against clean_code_rules.md
+- Audits changed Python files against clean_code_rules.yml
 - Auto-fixes safe mechanical issues (ruff fix/format, unused imports, simple print->logging)
 - Re-audits until clean or remaining violations require semantic refactor
 - Runs SonarQube via pysonar and enforces Quality Gate only
@@ -18,7 +18,7 @@ metadata:
 - Base branch: develop (fallback: origin/develop)
 - Only checks changed *.py files
 - Requires a clean working tree, or only pre-existing changes limited to the PR-changed Python files (to guarantee exactly one refactor commit)
-- Commit scope is AUTO-derived from changed files (can be overridden)
+- `--scope AUTO` (default) reviews all changed Python files; `--scope <package>` restricts the run to that package
 
 ## How to run
 Run via PowerShell using the skill’s local venv:
@@ -29,16 +29,24 @@ Audit only:
 Audit + autofix + commit:
 `& "$env:USERPROFILE\\.codex\\skills\\clean-code-pr-review\\.venv\\Scripts\\python.exe" "$env:USERPROFILE\\.codex\\skills\\clean-code-pr-review\\run.py" --commit`
 
-Audit + autofix + Sonar gate + commit:
-`& "$env:USERPROFILE\\.codex\\skills\\clean-code-pr-review\\.venv\\Scripts\\python.exe" "$env:USERPROFILE\\.codex\\skills\\clean-code-pr-review\\run.py" --commit --sonar`
+Audit + autofix + commit + semantic gate:
+`& "$env:USERPROFILE\\.codex\\skills\\clean-code-pr-review\\.venv\\Scripts\\python.exe" "$env:USERPROFILE\\.codex\\skills\\clean-code-pr-review\\run.py" --commit --semantic`
 
-Override scope:
+Restrict to a package (name or path):
 `& "$env:USERPROFILE\\.codex\\skills\\clean-code-pr-review\\.venv\\Scripts\\python.exe" "$env:USERPROFILE\\.codex\\skills\\clean-code-pr-review\\run.py" --commit --scope etl`
 
 ## Sonar configuration
 - The calling project should provide `sonar-project.properties` (pysonar picks it up automatically).
 - Put `SONAR_TOKEN` into the calling project’s `.env` (the runner loads it from the CWD).
 - Optional overrides: pass `--sonar-host-url`, `--sonar-project-key`, `--sonar-sources`.
+- PR-scoped gating: by default the skill evaluates only "new code" Quality Gate conditions (typically `new_*`) against `develop`. Override with `--sonar-gate-scope full` or `--sonar-reference-branch <branch>`.
+- Sonar is enabled by default; disable with `--no-sonar`.
+
+## Semantic gate
+- Enable with `--semantic` to evaluate `SEMANTIC` rules from `clean_code_rules.yml`.
+- The runner writes a deterministic scaffold ledger (`semantic_ledger.yml`) and a prompt (`semantic_prompt.md`) to a stable temp folder by default (or `--semantic-out-dir`).
+- Codex (the agent) is expected to fill in `PASS|FAIL|NA` for each rule/file entry (use `NEEDS_HUMAN` only if truly undecidable) and rerun.
+- If you only want artifacts (no gating), use `--semantic --semantic-scaffold-only`.
 
 ## Output contract
 The runner prints JSON with:
@@ -48,7 +56,7 @@ The runner prints JSON with:
 - violations: [...]
 - sonar: { quality_gate, conditions, ... } | null
 - commit: { attempted, created, message }
-- summary, scope, next_action
+- summary, scope, package, next_action
 
 Exit codes:
 - 0 => pass
@@ -56,7 +64,7 @@ Exit codes:
 - 3 => internal error / misconfiguration
 
 ## Procedure for Codex
-1) Run with --commit --sonar.
-2) If it fails with remaining violations, fix them per clean_code_rules.md and rerun (it will tolerate a dirty tree only if the changes are limited to the PR-changed Python files).
+1) Run with `--commit` (Sonar runs by default).
+2) If it fails with remaining violations, fix them per `clean_code_rules.yml` and rerun (it will tolerate a dirty tree only if the changes are limited to the PR-changed Python files).
 3) When status=pass, ensure the single refactor commit exists.
 4) Never fabricate results. Always rely on the script output.

@@ -4,6 +4,7 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Tuple
@@ -16,8 +17,10 @@ class FixResult:
     actions: List[str]
 
 
-def run(cmd: List[str]) -> Tuple[int, str, str]:
-    p = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+def run(cmd: List[str], env: dict | None = None) -> Tuple[int, str, str]:
+    p = subprocess.run(
+        cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=env
+    )
     return p.returncode, p.stdout, p.stderr
 
 
@@ -47,10 +50,13 @@ def ensure_logger_scaffold(source: str) -> str:
         return source
 
     lines = source.splitlines()
-    has_logging_import = any(re.match(r"^\s*import\s+logging\s*$", l) for l in lines) or any(
-        re.match(r"^\s*from\s+logging\s+import\s+", l) for l in lines
+    has_logging_import = any(
+        re.match(r"^\s*import\s+logging\s*$", line) for line in lines
+    ) or any(re.match(r"^\s*from\s+logging\s+import\s+", line) for line in lines)
+    has_logger = any(
+        re.match(r"^\s*logger\s*=\s*logging\.getLogger\(__name__\)\s*$", line)
+        for line in lines
     )
-    has_logger = any(re.match(r"^\s*logger\s*=\s*logging\.getLogger\(__name__\)\s*$", l) for l in lines)
 
     if not has_logging_import:
         insert_at = 0
@@ -60,8 +66,8 @@ def ensure_logger_scaffold(source: str) -> str:
                     insert_at = j + 1
                     break
 
-        for i, l in enumerate(lines):
-            if re.match(r"^\s*(import|from)\s+", l):
+        for i, line in enumerate(lines):
+            if re.match(r"^\s*(import|from)\s+", line):
                 insert_at = i
                 break
 
@@ -69,8 +75,8 @@ def ensure_logger_scaffold(source: str) -> str:
 
     if not has_logger:
         last_import_idx = -1
-        for i, l in enumerate(lines):
-            if re.match(r"^\s*(import|from)\s+", l):
+        for i, line in enumerate(lines):
+            if re.match(r"^\s*(import|from)\s+", line):
                 last_import_idx = i
         if last_import_idx >= 0:
             lines.insert(last_import_idx + 1, "")
@@ -111,8 +117,13 @@ def ruff_fix_and_format(files: List[str]) -> None:
         return
 
     ruff = tool_cmd("ruff")
-    run(ruff + ["check", "--fix", *files])
-    run(ruff + ["format", *files])
+    env = os.environ.copy()
+    env["RUFF_CACHE_DIR"] = str(
+        Path(tempfile.gettempdir()) / "clean-code-pr-review" / "ruff-cache"
+    )
+
+    run(ruff + ["check", "--fix", *files], env=env)
+    run(ruff + ["format", *files], env=env)
 
 
 def fix_files(files: List[str]) -> List[FixResult]:

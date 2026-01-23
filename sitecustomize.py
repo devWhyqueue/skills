@@ -14,4 +14,3 @@ try:
     truststore.inject_into_ssl()
 except Exception:
     pass
-
