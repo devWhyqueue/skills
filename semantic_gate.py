@@ -96,7 +96,9 @@ def load_semantic_rules(rules_path: Path) -> List[SemanticRule]:
     data = y.safe_load(rules_path.read_text(encoding="utf-8", errors="replace")) or {}
     rules = data.get("rules", [])
     if not isinstance(rules, list):
-        raise RuntimeError(f"Invalid rules file (expected list at rules:): {rules_path}")
+        raise RuntimeError(
+            f"Invalid rules file (expected list at rules:): {rules_path}"
+        )
 
     semantic: List[SemanticRule] = []
     for r in rules:
@@ -133,7 +135,7 @@ def _truncate(text: str, *, max_chars: int) -> str:
     )
 
 
-def semantic_gate_temp_dir(*, prefix: str = "clean-code-pr-review-semantic-") -> Path:
+def semantic_gate_temp_dir(*, prefix: str = "clean-code-semantic-") -> Path:
     base = Path(tempfile.gettempdir())
     out = base / f"{prefix}{os.getpid()}-{int(datetime.now().timestamp())}"
     out.mkdir(parents=True, exist_ok=True)
@@ -290,7 +292,11 @@ def _normalize_evidence_item(item: Any) -> Optional[Dict[str, Any]]:
         return None
     if end_i < start_i:
         start_i, end_i = end_i, start_i
-    return {"symbol": symbol, "lines": {"start": start_i, "end": end_i}, "message": message}
+    return {
+        "symbol": symbol,
+        "lines": {"start": start_i, "end": end_i},
+        "message": message,
+    }
 
 
 def normalize_ledger_structure(
@@ -368,7 +374,13 @@ def normalize_ledger_structure(
             elif status == "NEEDS_HUMAN":
                 needs_human += 1
 
-            out_rules.append({"id": rules_by_id[rid].rule_id, "status": status, "evidence": evidence_items})
+            out_rules.append(
+                {
+                    "id": rules_by_id[rid].rule_id,
+                    "status": status,
+                    "evidence": evidence_items,
+                }
+            )
 
         normalized_files.append({"path": path, "rules": out_rules})
 
@@ -429,7 +441,9 @@ def run_semantic_scaffold(
     # keep meta deterministically present (normalize strips it)
     normalized["meta"] = ledger["meta"]
 
-    ledger_template_path.write_text(dump_yaml_deterministic(normalized), encoding="utf-8")
+    ledger_template_path.write_text(
+        dump_yaml_deterministic(normalized), encoding="utf-8"
+    )
     if not ledger_path.exists():
         ledger_path.write_text(dump_yaml_deterministic(normalized), encoding="utf-8")
 
@@ -439,8 +453,11 @@ def run_semantic_scaffold(
         "ledger_template_path": _posix(ledger_template_path),
         "prompt_path": _posix(prompt_path),
         "summary": normalized["summary"],
-        "semantic_rules": [{"id": r.rule_id, "statement": r.statement} for r in semantic_rules],
+        "semantic_rules": [
+            {"id": r.rule_id, "statement": r.statement} for r in semantic_rules
+        ],
     }
+
 
 def load_and_validate_ledger(
     *,
@@ -451,7 +468,9 @@ def load_and_validate_ledger(
     y = _require_yaml()
     semantic_rules = load_semantic_rules(rules_path)
 
-    raw_any = y.safe_load(ledger_path.read_text(encoding="utf-8", errors="replace")) or {}
+    raw_any = (
+        y.safe_load(ledger_path.read_text(encoding="utf-8", errors="replace")) or {}
+    )
     raw = raw_any if isinstance(raw_any, dict) else {}
     normalized = normalize_ledger_structure(
         ledger=raw, files=files, semantic_rules=semantic_rules
@@ -547,7 +566,9 @@ def main() -> int:
     out_dir = Path(args.out_dir) if args.out_dir.strip() else None
     if args.validate:
         if out_dir is None:
-            raise SystemExit("--validate requires --out-dir (directory containing semantic_ledger.yml).")
+            raise SystemExit(
+                "--validate requires --out-dir (directory containing semantic_ledger.yml)."
+            )
         ledger_path = out_dir / "semantic_ledger.yml"
         if not ledger_path.exists():
             raise SystemExit(f"Ledger not found: {ledger_path}")

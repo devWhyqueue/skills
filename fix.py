@@ -119,7 +119,7 @@ def ruff_fix_and_format(files: List[str]) -> None:
     ruff = tool_cmd("ruff")
     env = os.environ.copy()
     env["RUFF_CACHE_DIR"] = str(
-        Path(tempfile.gettempdir()) / "clean-code-pr-review" / "ruff-cache"
+        Path(tempfile.gettempdir()) / "clean-code" / "ruff-cache"
     )
 
     run(ruff + ["check", "--fix", *files], env=env)

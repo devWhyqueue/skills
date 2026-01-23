@@ -318,7 +318,9 @@ def detect_non_snake_case_identifiers(
                 if not is_snake(a.arg):
                     hits.append(
                         (
-                            getattr(a, "lineno", None) or getattr(node, "lineno", None) or 1,
+                            getattr(a, "lineno", None)
+                            or getattr(node, "lineno", None)
+                            or 1,
                             f"parameter '{a.arg}'",
                         )
                     )
@@ -339,7 +341,9 @@ def detect_non_snake_case_identifiers(
                     if not (is_snake(t.id) or is_constant(t.id)):
                         hits.append(
                             (
-                                getattr(t, "lineno", None) or getattr(node, "lineno", None) or 1,
+                                getattr(t, "lineno", None)
+                                or getattr(node, "lineno", None)
+                                or 1,
                                 f"assignment target '{t.id}'",
                             )
                         )

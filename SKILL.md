@@ -1,8 +1,8 @@
 ---
-name: clean-code-pr-review
-description: Review all changed Python files on the current branch vs develop for clean code rule violations, automatically fix them, run SonarQube quality gate via pysonar, and create a single conventional refactor commit.
+name: clean-code
+description: Review all changed Python files on the current branch vs develop for clean code rule violations, automatically fix them if possible, and create a single conventional refactor commit.
 metadata:
-  short-description: PR clean code review + autofix + Sonar gate + single refactor commit
+  short-description: PR code cleanup
   version: 1.0.0
 ---
 
@@ -25,16 +25,16 @@ metadata:
 Run via PowerShell using the skill’s local venv:
 
 Audit only:
-`& "$env:USERPROFILE\\.codex\\skills\\clean-code-pr-review\\.venv\\Scripts\\python.exe" "$env:USERPROFILE\\.codex\\skills\\clean-code-pr-review\\run.py" --audit-only`
+`& "$env:USERPROFILE\\.codex\\skills\\clean-code\\.venv\\Scripts\\python.exe" "$env:USERPROFILE\\.codex\\skills\\clean-code\\run.py" --audit-only`
 
 Audit + autofix + commit:
-`& "$env:USERPROFILE\\.codex\\skills\\clean-code-pr-review\\.venv\\Scripts\\python.exe" "$env:USERPROFILE\\.codex\\skills\\clean-code-pr-review\\run.py" --commit`
+`& "$env:USERPROFILE\\.codex\\skills\\clean-code\\.venv\\Scripts\\python.exe" "$env:USERPROFILE\\.codex\\skills\\clean-code\\run.py" --commit`
 
 Audit + autofix + commit (semantic gate disabled):
-`& "$env:USERPROFILE\\.codex\\skills\\clean-code-pr-review\\.venv\\Scripts\\python.exe" "$env:USERPROFILE\\.codex\\skills\\clean-code-pr-review\\run.py" --commit --no-semantic`
+`& "$env:USERPROFILE\\.codex\\skills\\clean-code\\.venv\\Scripts\\python.exe" "$env:USERPROFILE\\.codex\\skills\\clean-code\\run.py" --commit --no-semantic`
 
 Restrict to a package (name or path):
-`& "$env:USERPROFILE\\.codex\\skills\\clean-code-pr-review\\.venv\\Scripts\\python.exe" "$env:USERPROFILE\\.codex\\skills\\clean-code-pr-review\\run.py" --commit --scope etl`
+`& "$env:USERPROFILE\\.codex\\skills\\clean-code\\.venv\\Scripts\\python.exe" "$env:USERPROFILE\\.codex\\skills\\clean-code\\run.py" --commit --scope etl`
 
 ## Sonar configuration
 - The calling project should provide `sonar-project.properties` (pysonar picks it up automatically).

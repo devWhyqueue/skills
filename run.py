@@ -55,7 +55,7 @@ def default_semantic_out_dir() -> Path:
     safe = "".join(
         ch if ch.isalnum() or ch in {"-", "_", "."} else "_" for ch in branch
     )
-    return Path(tempfile.gettempdir()) / f"clean-code-pr-review-semantic-{safe}"
+    return Path(tempfile.gettempdir()) / f"clean-code-semantic-{safe}"
 
 
 def git_status_entries() -> List[tuple[str, str]]:

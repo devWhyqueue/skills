@@ -558,7 +558,7 @@ def run_sonar_gate_check(
             "`sonar.host.url` and `sonar.projectKey`, or pass --sonar-host-url / --sonar-project-key."
         )
 
-    with tempfile.TemporaryDirectory(prefix="clean-code-pr-review-sonar-") as temp_dir:
+    with tempfile.TemporaryDirectory(prefix="clean-code-sonar-") as temp_dir:
         temp_path = Path(temp_dir)
         scanner_working_directory = temp_path / ".scannerwork"
         scanner_metadata_path = temp_path / "report-task.txt"
