@@ -55,6 +55,13 @@ def _venv_tool_cmd(tool: str) -> List[str]:
     This skill is meant to be run with `...\\.venv\\Scripts\\python.exe` without
     relying on PATH or external fallbacks.
     """
+    # `pysonar.exe` (from `pysonar-scanner`) is a small trampoline binary on
+    # Windows that is not reliably relocatable if the venv/skill folder moves.
+    # Invoke the module via the running interpreter instead to avoid:
+    # "Failed to canonicalize script path".
+    if tool == "pysonar":
+        return [sys.executable, "-m", "pysonar_scanner"]
+
     exe_suffix = ".exe" if os.name == "nt" else ""
     sibling = Path(sys.executable).with_name(f"{tool}{exe_suffix}")
     if sibling.exists():
@@ -149,7 +156,7 @@ def run_pysonar(
     project_key: Optional[str] = None,
     sources: Optional[str] = None,
     extra_args: Optional[List[str]] = None,
-) -> None:
+) -> subprocess.CompletedProcess[str]:
     extra_args = extra_args or []
 
     # Ensure `sitecustomize.py` in this skill directory is importable by the
@@ -215,6 +222,7 @@ def run_pysonar(
             raise RuntimeError(
                 f"pysonar failed (exit {code}).\nSTDOUT:\n{out}\nSTDERR:\n{err}"
             ) from e
+    return p
 
 
 def wait_for_compute_engine(
@@ -563,7 +571,7 @@ def run_sonar_gate_check(
         scanner_working_directory = temp_path / ".scannerwork"
         scanner_metadata_path = temp_path / "report-task.txt"
 
-        run_pysonar(
+        p = run_pysonar(
             token=token,
             branch=branch,
             reference_branch=reference_branch,
@@ -578,7 +586,35 @@ def run_sonar_gate_check(
             extra_args=extra_args,
         )
 
-        report = _read_report_task(scanner_metadata_path)
+        report_task_candidates: List[Path] = []
+        report_task_candidates.append(scanner_metadata_path)
+        report_task_candidates.append(scanner_working_directory / "report-task.txt")
+
+        report: Optional[Dict[str, str]] = None
+        last_error: Optional[Exception] = None
+        for candidate in report_task_candidates:
+            try:
+                report = _read_report_task(candidate)
+                break
+            except Exception as e:
+                last_error = e
+                continue
+
+        if report is None:
+            # Fall back to pysonar's default locations in the project root.
+            try:
+                report = _read_report_task(None)
+            except Exception as e:
+                last_error = e
+
+        if report is None:
+            tried = "\n".join(f"- {c}" for c in report_task_candidates)
+            raise RuntimeError(
+                "Missing report-task.txt (pysonar output). Tried:\n"
+                f"{tried}\n"
+                "and defaults (.sonar/report-task.txt, .scannerwork/report-task.txt).\n"
+                f"pysonar exit={p.returncode}\nSTDOUT:\n{p.stdout}\nSTDERR:\n{p.stderr}"
+            ) from last_error
         ce_task_url = report.get("ceTaskUrl")
         if not ce_task_url:
             raise RuntimeError("report-task.txt missing ceTaskUrl")
