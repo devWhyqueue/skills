@@ -10,7 +10,7 @@ from git import current_branch
 from .ledger import load_and_validate_ledger
 from .prompt import build_index_prompt
 from .scaffold import run_scaffold
-from .utils import safe_slug
+from .utils import file_has_non_whitespace, safe_slug
 
 SEMANTIC_MAX_DIFF_CHARS = 120_000
 SEMANTIC_RULES_PATH = Path(__file__).resolve().parent.parent / "clean_code_rules.yml"
@@ -35,7 +35,8 @@ def run_semantic_gate_if_enabled(
     base_ref: str,
     head_ref: str,
 ) -> Optional[dict[str, object]]:
-    if not enabled or not files:
+    filtered_files = _filter_semantic_files(files)
+    if not enabled or not filtered_files:
         return None
 
     if not SEMANTIC_RULES_PATH.exists():
@@ -46,7 +47,7 @@ def run_semantic_gate_if_enabled(
     semantic_out_dir = default_semantic_out_dir()
 
     next_file = _select_next_file(
-        files=files, out_dir=semantic_out_dir, rules_path=SEMANTIC_RULES_PATH
+        files=filtered_files, out_dir=semantic_out_dir, rules_path=SEMANTIC_RULES_PATH
     )
     if next_file is not None:
         semantic_report = run_scaffold(
@@ -71,7 +72,7 @@ def run_semantic_gate_if_enabled(
 
     ledger_path = semantic_out_dir / "semantic_ledger.yml"
     semantic_validation = load_and_validate_ledger(
-        ledger_path=ledger_path, files=files, rules_path=SEMANTIC_RULES_PATH
+        ledger_path=ledger_path, files=filtered_files, rules_path=SEMANTIC_RULES_PATH
     )
     if next_file is None:
         prompt_path = semantic_out_dir / "semantic_prompt.md"
@@ -146,6 +147,10 @@ def _select_next_file(
         if status != "pass":
             return path
     return None
+
+
+def _filter_semantic_files(files: list[str]) -> list[str]:
+    return [path for path in files if file_has_non_whitespace(path)]
 
 
 def _select_next_file_entry(

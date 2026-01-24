@@ -35,6 +35,13 @@ def file_line_count(path: str) -> int:
         return 1
 
 
+def file_has_non_whitespace(path: str) -> bool:
+    try:
+        return bool(Path(path).read_text(encoding="utf-8", errors="replace").strip())
+    except Exception:
+        return False
+
+
 def safe_slug(path: str, *, max_length: int = 120) -> str:
     cleaned = path.replace("\\", "/").strip("/")
     slug = re.sub(r"[^A-Za-z0-9._-]+", "_", cleaned).strip("_")
