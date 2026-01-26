@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import tempfile
 from pathlib import Path
+import shutil
 from typing import Any, Optional
 
 import yaml
@@ -26,6 +27,14 @@ def default_semantic_out_dir() -> Path:
         ch if ch.isalnum() or ch in {"-", "_", "."} else "_" for ch in branch
     )
     return Path(tempfile.gettempdir()) / f"clean-code-semantic-{safe}"
+
+
+def reset_semantic_out_dir() -> Path:
+    out_dir = default_semantic_out_dir()
+    if out_dir.exists():
+        shutil.rmtree(out_dir, ignore_errors=True)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    return out_dir
 
 
 def run_semantic_gate_if_enabled(

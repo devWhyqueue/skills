@@ -3,13 +3,14 @@ from __future__ import annotations
 import json
 from dataclasses import asdict
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, Optional
 
 from audit import audit_changed_python_files
 from audit.files import filter_python_files, is_within_dir
 from git import changed_files, detect_base_ref
 from cli.scope import derive_scope_from_files, resolve_package_dir
-from semantic.gate import run_semantic_gate_if_enabled
+from semantic.gate import reset_semantic_out_dir, run_semantic_gate_if_enabled
 from sonar.gate import run_sonar_gate
 from audit.fix import fix_files
 from git import commit as git_commit
@@ -89,7 +90,7 @@ def _run_fix_loop(
     return files, violations, fixed_files
 
 
-def _full_run(args: Any) -> int:
+def _run_full(args: Any) -> tuple[int, dict[str, Any]]:
     package_dir = _resolve_package_dir(args.scope)
 
     files = _list_changed_python_files(
@@ -177,8 +178,7 @@ def _full_run(args: Any) -> int:
         ),
     }
 
-    _print_report(report)
-    return 0 if status == "pass" else 2
+    return (0 if status == "pass" else 2), report
 
 
 def run(args: Any) -> int:
@@ -187,7 +187,37 @@ def run(args: Any) -> int:
         args.base_ref = base_ref
         args.head_ref = "HEAD"
         args.max_iterations = 5
-        return _full_run(args)
+
+        args.audit = True
+        args.sonar = True
+        args.semantic = True
+
+        reset_semantic_out_dir()
+
+        def _clone(**overrides: object) -> Any:
+            base = vars(args).copy()
+            base.update(overrides)
+            return SimpleNamespace(**base)
+
+        code, report = _run_full(
+            _clone(audit=True, sonar=False, semantic=False, commit=False)
+        )
+        if code != 0:
+            _print_report(report)
+            return code
+
+        code, report = _run_full(
+            _clone(audit=True, sonar=True, semantic=False, commit=False)
+        )
+        if code != 0:
+            _print_report(report)
+            return code
+
+        code, report = _run_full(
+            _clone(audit=True, sonar=True, semantic=True, commit=True)
+        )
+        _print_report(report)
+        return code
     except Exception as e:
         _print_report(
             {

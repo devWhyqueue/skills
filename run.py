@@ -17,30 +17,6 @@ from cli.runner import run as run_skill
     show_default=False,
     help="Optional package to target (name or path). Default: all changed Python files.",
 )
-@click.option(
-    "--audit/--no-audit",
-    default=True,
-    show_default=True,
-    help="Run clean-code audit + autofix.",
-)
-@click.option(
-    "--sonar/--no-sonar",
-    default=True,
-    show_default=True,
-    help="Run SonarQube Quality Gate.",
-)
-@click.option(
-    "--semantic/--no-semantic",
-    default=True,
-    show_default=True,
-    help="Run semantic gate (ledger-based).",
-)
-@click.option(
-    "--commit/--no-commit",
-    default=True,
-    show_default=True,
-    help="Create a refactor commit on pass.",
-)
 def main(**kwargs: object) -> None:
     load_env_file(Path.cwd() / ".env")
 

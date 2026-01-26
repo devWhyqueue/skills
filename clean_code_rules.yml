@@ -5,68 +5,59 @@ enforcement_values:
   - MANUAL
 rules:
   - id: CC-01
-    statement: "All code must be written in English."
-    enforcement: SEMANTIC
-  - id: CC-02
     statement: "Use `snake_case` for all Python identifiers (variables, functions, methods, modules)."
     enforcement: AUTO
-  - id: CC-03
-    statement: "Use descriptive, \"speaking\" names that convey intent."
-    enforcement: SEMANTIC
-  - id: CC-04
+  - id: CC-02
     statement: "Within a single module, use either Spark SQL or the PySpark API and do not mix both."
     enforcement: AUTO
-  - id: CC-05
-    statement: "Keep new/changed code isolated within its owning package and extract generic logic into shared modules/packages only when the same functionality is already implemented or needed across multiple packages (often packages=pipelines)."
-    enforcement: SEMANTIC
-  - id: CC-06
+  - id: CC-03
     statement: "Avoid code duplication."
-    enforcement: SEMANTIC
-  - id: CC-07
+    enforcement: AUTO
+  - id: CC-04
     statement: "A file must not exceed 250 lines of code."
     enforcement: AUTO
-  - id: CC-08
+  - id: CC-05
     statement: "A package must not exceed 7 files."
     enforcement: AUTO
-  - id: CC-09
+  - id: CC-06
     statement: "Public functions must include docstrings."
     enforcement: AUTO
-  - id: CC-10
+  - id: CC-07
     statement: "Public functions must include type hints, and `Any` does not count."
     enforcement: AUTO
-  - id: CC-11
+  - id: CC-08
     statement: "Avoid broad `except Exception:` blocks."
     enforcement: AUTO
-  - id: CC-12
-    statement: "Exception handling must be specific."
-    enforcement: SEMANTIC
-  - id: CC-13
-    statement: "Resolve all IDE warnings."
-    enforcement: MANUAL
-  - id: CC-14
+  - id: CC-09
     statement: "Remove unused imports immediately."
     enforcement: AUTO
-  - id: CC-15
+  - id: CC-10
     statement: "Imports must always be located at the top-level of the file."
     enforcement: AUTO
-  - id: CC-16
+  - id: CC-11
     statement: "Keep functions concise, ideally < 25 lines, except Airflow DAG factories (`@dag`) and Airflow task group factories (`@task_group`)."
     enforcement: AUTO
-  - id: CC-17
-    statement: "Use the standard `logging` library."
-    enforcement: SEMANTIC
-  - id: CC-18
+  - id: CC-12
     statement: "`print()` statements are prohibited."
     enforcement: AUTO
-  - id: CC-19
-    statement: "Avoid comments."
-    enforcement: SEMANTIC
-  - id: CC-20
-    statement: "If a comment is necessary, explain the \"Why,\" not the \"What.\""
-    enforcement: SEMANTIC
-  - id: CC-21
+  - id: CC-13
     statement: "No commented-out code blocks are allowed."
     enforcement: AUTO
-  - id: CC-22
-    statement: "Keep code concise (e.g. fill lines if possible, no unnecessary parameter line breaks)."
+  - id: CC-14
+    statement: "Rewrite non-English identifiers, module names, package names, docstrings, comments, and user-facing strings to clear English."
     enforcement: SEMANTIC
+  - id: CC-15
+    statement: "Rename vague or abbreviated identifiers, modules, and packages to meaningful domain names; keep naming consistent with role and type."
+    enforcement: SEMANTIC
+  - id: CC-16
+    statement: "Keep logic in the file or package where it is used; extract to shared modules only when the same logic is already used or clearly will be used across multiple packages."
+    enforcement: SEMANTIC
+  - id: CC-17
+    statement: "Replace broad exception handling with specific exception types; add targeted handling per failure mode and re-raise unexpected errors."
+    enforcement: SEMANTIC
+  - id: CC-18
+    statement: "Delete redundant \"what\" comments; keep only \"why\" comments that justify non-obvious decisions, constraints, or trade-offs."
+    enforcement: SEMANTIC
+  - id: CC-19
+    statement: "Resolve all IDE warnings."
+    enforcement: MANUAL
