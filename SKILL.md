@@ -19,6 +19,12 @@ metadata:
 - Audit, Pyright, Sonar, and Semantic run in a fixed staged flow
 - Commit-on-pass is always enabled
 
+## Setup
+- Install the dependencies from this skill's `pyproject.toml` as dev deps in the calling project.
+- Provide a `pyrightconfig.json` in the calling project that points at the project venv.
+- The calling project should provide `sonar-project.properties` (pysonar picks it up automatically).
+- Put `SONAR_TOKEN` into the calling project’s `.env` (the runner loads it from the CWD).
+
 ## How to run
 Run via PowerShell using the calling project’s venv:
 
@@ -27,11 +33,6 @@ Audit + autofix + gates + commit (default):
 
 Restrict to a package (name or path):
 `& "$env:VIRTUAL_ENV\\Scripts\\python.exe" "$env:USERPROFILE\\.codex\\skills\\clean-code\\run.py" --scope etl`
-
-## Sonar configuration
-- The calling project should provide `sonar-project.properties` (pysonar picks it up automatically).
-- Put `SONAR_TOKEN` into the calling project’s `.env` (the runner loads it from the CWD).
-- The skill enforces the "new-code" gate against `develop`.
 
 ## Semantic gate
 - The runner writes an index ledger (`semantic_ledger.yml`) and prompt (`semantic_prompt.md`) plus per-file ledgers/prompts under `ledgers/` and `prompts/` in a stable temp folder per git branch.

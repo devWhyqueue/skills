@@ -9,6 +9,10 @@ It enforces:
 - SonarQube Quality Gate (via pysonar), new-code scoped by default
 - Semantic gate scaffold produces an index (`semantic_prompt.md` + `semantic_ledger.yml`) plus per-file ledgers/prompts under `ledgers/` and `prompts/`. It generates only one per-file ledger/prompt per run, and the index prompt shows one file at a time; rerun the skill to advance. It gates on the evaluated per-file ledgers.
 
+Setup notes:
+- Install the dependencies from this skill's `pyproject.toml` as dev deps in the calling project.
+- Provide a `pyrightconfig.json` in the calling project that points at the project venv.
+
 ## Run
 Run via PowerShell using the calling project’s venv:
 
