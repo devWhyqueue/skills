@@ -5,7 +5,7 @@ enforcement_values:
   - MANUAL
 rules:
   - id: CC-01
-    statement: "Use `snake_case` for all Python identifiers (variables, functions, methods, modules)."
+    statement: "Use `snake_case` for variables, functions, methods, and modules. Use `PascalCase` for classes and type aliases."
     enforcement: AUTO
   - id: CC-02
     statement: "Within a single module, use either Spark SQL or the PySpark API and do not mix both."

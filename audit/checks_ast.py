@@ -38,10 +38,15 @@ def all_args_typed(func: ast.FunctionDef) -> bool:
 
 
 def function_length_lines(func: ast.FunctionDef) -> int:
-    start = getattr(func, "lineno", None)
-    end = getattr(func, "end_lineno", None)
+    body = list(func.body or [])
+    if not body:
+        return 0
+
+    start = getattr(body[0], "lineno", None)
+    end = getattr(body[-1], "end_lineno", None)
     if start is None or end is None:
         return 0
+
     start = max(int(start), 1)
     end = max(int(end), start)
     return (end - start) + 1
@@ -119,6 +124,35 @@ def detect_imports_not_at_file_top(source: str, tree: ast.AST) -> list[tuple[int
 
 _SNAKE_CASE_RE = re.compile(r"^[a-z_][a-z0-9_]*$")
 _CONSTANT_RE = re.compile(r"^[A-Z_][A-Z0-9_]*$")
+_PASCAL_CASE_RE = re.compile(r"^[A-Z][A-Za-z0-9]*$")
+
+_TYPING_ROOTS = {
+    "dict",
+    "list",
+    "set",
+    "tuple",
+    "frozenset",
+    "type",
+    "Optional",
+    "Union",
+    "Literal",
+    "Callable",
+    "Iterable",
+    "Sequence",
+    "Mapping",
+    "MutableMapping",
+    "Collection",
+    "Generator",
+    "Coroutine",
+    "AsyncIterator",
+    "AsyncIterable",
+    "Protocol",
+    "TypedDict",
+    "NewType",
+    "Final",
+    "ClassVar",
+    "TypeAlias",
+}
 
 
 def detect_non_snake_case_identifiers(tree: ast.AST) -> list[tuple[int, str]]:
@@ -140,6 +174,31 @@ def detect_non_snake_case_identifiers(tree: ast.AST) -> list[tuple[int, str]]:
 
     def is_constant(name: str) -> bool:
         return bool(_CONSTANT_RE.match(name))
+
+    def is_pascal(name: str) -> bool:
+        return bool(_PASCAL_CASE_RE.match(name))
+
+    def is_typing_name(node: ast.AST) -> bool:
+        if isinstance(node, ast.Name):
+            return node.id in _TYPING_ROOTS
+        if isinstance(node, ast.Attribute):
+            return node.attr in _TYPING_ROOTS
+        return False
+
+    def is_type_expr(node: ast.AST | None) -> bool:
+        if node is None:
+            return False
+        if is_typing_name(node):
+            return True
+        if isinstance(node, ast.Subscript):
+            return is_type_expr(node.value) or is_type_expr(node.slice)
+        if isinstance(node, ast.BinOp) and isinstance(node.op, ast.BitOr):
+            return is_type_expr(node.left) and is_type_expr(node.right)
+        if isinstance(node, (ast.Tuple, ast.List)):
+            return all(is_type_expr(elt) for elt in node.elts)
+        if isinstance(node, ast.Call):
+            return is_typing_name(node.func)
+        return False
 
     hits: set[tuple[int, str]] = set()
 
@@ -185,14 +244,20 @@ def detect_non_snake_case_identifiers(tree: ast.AST) -> list[tuple[int, str]]:
 
             for t in targets:
                 if isinstance(t, ast.Name):
-                    if not (is_snake(t.id) or is_constant(t.id)):
-                        hits.add(
-                            (
-                                getattr(t, "lineno", None)
-                                or getattr(stmt, "lineno", None)
-                                or 1,
-                                f"assignment target '{t.id}'",
-                            )
+                    if is_snake(t.id) or is_constant(t.id):
+                        continue
+                    if is_pascal(t.id):
+                        if isinstance(stmt, ast.AnnAssign) and stmt.annotation is not None:
+                            continue
+                        if isinstance(stmt, ast.Assign) and is_type_expr(stmt.value):
+                            continue
+                    hits.add(
+                        (
+                            getattr(t, "lineno", None)
+                            or getattr(stmt, "lineno", None)
+                            or 1,
+                            f"assignment target '{t.id}'",
                         )
+                    )
 
     return sorted(hits, key=lambda x: (x[0], x[1]))

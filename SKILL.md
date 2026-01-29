@@ -9,7 +9,6 @@ metadata:
 ## What this skill does
 - Computes the diff between the current branch and develop
 - Audits changed Python files against clean_code_rules.yml
-- Auto-fixes safe mechanical issues (ruff fix/format, unused imports, simple print->logging)
 - Produces ONE conventional commit: refactor(<scope>): clean code compliance
 
 ## Default behavior
@@ -17,17 +16,17 @@ metadata:
 - Only checks changed *.py files
 - Requires a clean working tree, or only pre-existing changes limited to the PR-changed Python files (to guarantee exactly one refactor commit)
 - `--scope` is optional; when provided, restricts the run to that package (name or path)
-- Audit, Sonar, and Semantic run in a fixed staged flow
+- Audit, Pyright, Sonar, and Semantic run in a fixed staged flow
 - Commit-on-pass is always enabled
 
 ## How to run
-Run via PowerShell using the skill’s local venv:
+Run via PowerShell using the calling project’s venv:
 
 Audit + autofix + gates + commit (default):
-`& "$env:USERPROFILE\\.codex\\skills\\clean-code\\.venv\\Scripts\\python.exe" "$env:USERPROFILE\\.codex\\skills\\clean-code\\run.py"`
+`& "$env:VIRTUAL_ENV\\Scripts\\python.exe" "$env:USERPROFILE\\.codex\\skills\\clean-code\\run.py"`
 
 Restrict to a package (name or path):
-`& "$env:USERPROFILE\\.codex\\skills\\clean-code\\.venv\\Scripts\\python.exe" "$env:USERPROFILE\\.codex\\skills\\clean-code\\run.py" --scope etl`
+`& "$env:VIRTUAL_ENV\\Scripts\\python.exe" "$env:USERPROFILE\\.codex\\skills\\clean-code\\run.py" --scope etl`
 
 ## Sonar configuration
 - The calling project should provide `sonar-project.properties` (pysonar picks it up automatically).
@@ -45,6 +44,7 @@ The runner prints a single JSON report (first failing stage or final pass) with:
 - changed_files: [...]
 - fixed_files: [...]
 - violations: [...]
+- pyright: { tool, exit_code, stdout, stderr, issues, ... } | null
 - sonar: { quality_gate, conditions, ... } | null
 - semantic: { ... } | null
 - commit: { attempted, created, message }
@@ -56,7 +56,7 @@ Exit codes:
 - 3 => internal error / misconfiguration
 
 ## Procedure for Codex
-1) Run `run.py` (stages: audit-only -> audit+sonar -> audit+sonar+semantic).
+1) Run `run.py` (stages: audit-only -> audit+pyright -> audit+pyright+sonar -> audit+pyright+sonar+semantic).
 2) If it fails, fix per `clean_code_rules.yml` (or semantic ledger) and rerun. It tolerates a dirty tree only if changes are limited to the PR-changed Python files.
 3) When status=pass, ensure the single refactor commit exists.
 4) Never fabricate results. Always rely on the script output.

@@ -12,6 +12,7 @@ from git import changed_files, detect_base_ref
 from cli.scope import derive_scope_from_files, resolve_package_dir
 from semantic.gate import reset_semantic_out_dir, run_semantic_gate_if_enabled
 from sonar.gate import run_sonar_gate
+from typecheck.gate import run_pyright_gate
 from audit.fix import fix_files
 from git import commit as git_commit
 from git import ensure_clean_working_tree, has_changes
@@ -116,6 +117,16 @@ def _run_full(args: Any) -> tuple[int, dict[str, Any]]:
     )
 
     sonar_report = None
+    pyright_report = None
+    if status == "pass":
+        pyright_report, pyright_summary, pyright_failed = run_pyright_gate(
+            enabled=bool(args.pyright),
+            package_dir=package_dir,
+        )
+        if pyright_failed:
+            status = "fail"
+            summary = pyright_summary or summary
+
     if status == "pass":
         sonar_report, sonar_summary, sonar_failed = run_sonar_gate(
             enabled=bool(args.sonar),
@@ -154,6 +165,7 @@ def _run_full(args: Any) -> tuple[int, dict[str, Any]]:
         "fixed_files": sorted(set(fixed_files)),
         "violations": [asdict(v) for v in violations],
         "sonar": sonar_report,
+        "pyright": pyright_report,
         "semantic": semantic_report,
         "commit": {
             "attempted": bool(commit_enabled),
@@ -189,6 +201,7 @@ def run(args: Any) -> int:
         args.max_iterations = 5
 
         args.audit = True
+        args.pyright = True
         args.sonar = True
         args.semantic = True
 
@@ -200,21 +213,28 @@ def run(args: Any) -> int:
             return SimpleNamespace(**base)
 
         code, report = _run_full(
-            _clone(audit=True, sonar=False, semantic=False, commit=False)
+            _clone(audit=True, pyright=False, sonar=False, semantic=False, commit=False)
         )
         if code != 0:
             _print_report(report)
             return code
 
         code, report = _run_full(
-            _clone(audit=True, sonar=True, semantic=False, commit=False)
+            _clone(audit=True, pyright=True, sonar=False, semantic=False, commit=False)
         )
         if code != 0:
             _print_report(report)
             return code
 
         code, report = _run_full(
-            _clone(audit=True, sonar=True, semantic=True, commit=True)
+            _clone(audit=True, pyright=True, sonar=True, semantic=False, commit=False)
+        )
+        if code != 0:
+            _print_report(report)
+            return code
+
+        code, report = _run_full(
+            _clone(audit=True, pyright=True, sonar=True, semantic=True, commit=True)
         )
         _print_report(report)
         return code
