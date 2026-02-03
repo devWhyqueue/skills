@@ -5,6 +5,7 @@ Script-backed Codex skill to audit and clean up changed Python files on the curr
 It enforces:
 - your custom Clean Code Rules (see clean_code_rules.yml)
 - ruff autofix + formatting
+- vulture dead-code checks
 - pyright type checks
 - SonarQube Quality Gate (via pysonar), new-code scoped by default
 - Semantic gate scaffold produces an index (`semantic_prompt.md` + `semantic_ledger.yml`) plus per-file ledgers/prompts under `ledgers/` and `prompts/`. It generates only one per-file ledger/prompt per run, and the index prompt shows one file at a time; rerun the skill to advance. It gates on the evaluated per-file ledgers.

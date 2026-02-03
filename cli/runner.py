@@ -6,16 +6,17 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Optional
 
+from cli.scope import derive_scope_from_files, resolve_package_dir
 from audit import audit_changed_python_files
 from audit.files import filter_python_files, is_within_dir
+from audit.fix import fix_files
 from git import changed_files, detect_base_ref
-from cli.scope import derive_scope_from_files, resolve_package_dir
+from git import commit as git_commit
+from git import ensure_clean_working_tree, has_changes
 from semantic.gate import reset_semantic_out_dir, run_semantic_gate_if_enabled
 from sonar.gate import run_sonar_gate
 from typecheck.gate import run_pyright_gate
-from audit.fix import fix_files
-from git import commit as git_commit
-from git import ensure_clean_working_tree, has_changes
+from vulture_gate.gate import run_vulture_gate
 
 
 def semantic_failure_summary(semantic_report: dict[str, Any]) -> Optional[str]:
@@ -116,8 +117,18 @@ def _run_full(args: Any) -> tuple[int, dict[str, Any]]:
         package_dir.name if package_dir is not None else derive_scope_from_files(files)
     )
 
+    vulture_report = None
     sonar_report = None
     pyright_report = None
+    if args.vulture:
+        vulture_report, vulture_summary, vulture_failed = run_vulture_gate(
+            enabled=bool(args.vulture),
+            changed_files=files,
+        )
+        if vulture_failed and status == "pass":
+            status = "fail"
+            summary = vulture_summary or summary
+
     if status == "pass":
         pyright_report, pyright_summary, pyright_failed = run_pyright_gate(
             enabled=bool(args.pyright),
@@ -164,6 +175,7 @@ def _run_full(args: Any) -> tuple[int, dict[str, Any]]:
         "changed_files": files,
         "fixed_files": sorted(set(fixed_files)),
         "violations": [asdict(v) for v in violations],
+        "vulture": vulture_report,
         "sonar": sonar_report,
         "pyright": pyright_report,
         "semantic": semantic_report,
@@ -201,6 +213,7 @@ def run(args: Any) -> int:
         args.max_iterations = 5
 
         args.audit = True
+        args.vulture = True
         args.pyright = True
         args.sonar = True
         args.semantic = True

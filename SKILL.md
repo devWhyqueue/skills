@@ -9,6 +9,7 @@ metadata:
 ## What this skill does
 - Computes the diff between the current branch and develop
 - Audits changed Python files against clean_code_rules.yml
+- Runs a Vulture dead-code gate on the changed Python files
 - Produces ONE conventional commit: refactor(<scope>): clean code compliance
 
 ## Default behavior
@@ -45,6 +46,7 @@ The runner prints a single JSON report (first failing stage or final pass) with:
 - changed_files: [...]
 - fixed_files: [...]
 - violations: [...]
+- vulture: { tool, exit_code, issues: [...] } | null
 - pyright: { tool, exit_code, stdout, stderr, issues, ... } | null
 - sonar: { quality_gate, conditions, ... } | null
 - semantic: { ... } | null
