@@ -6,8 +6,6 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from audit.fix import run, tool_cmd
 
-_VULTURE_VALIDATION_THRESHOLD = 90
-
 
 def _build_vulture_cmd(paths: List[str]) -> List[str]:
     unique_paths = sorted({str(path) for path in paths})
@@ -29,12 +27,8 @@ def _parse_vulture_issue_line(line: str) -> Optional[Dict[str, Any]]:
     file_path = parts[0].strip()
     line_text = parts[1].strip()
     message_part = parts[2].strip()
-    match = re.search(r"\((\d+)% confidence\)\s*$", message_part)
-    confidence = 0
-    message = message_part
-    if match:
-        confidence = int(match.group(1))
-        message = message_part[: match.start()].rstrip()
+    match = re.search(r"\(\d+% confidence\)\s*$", message_part)
+    message = message_part[: match.start()].rstrip() if match else message_part
     name = ""
     kind = ""
     usage_match = re.search(r"unused\s+([a-zA-Z_]+)\s+'([^']+)'", message)
@@ -48,8 +42,6 @@ def _parse_vulture_issue_line(line: str) -> Optional[Dict[str, Any]]:
         "name": name,
         "type": kind,
         "message": message,
-        "confidence": confidence,
-        "needs_validation": confidence < _VULTURE_VALIDATION_THRESHOLD,
     }
     return issue
 

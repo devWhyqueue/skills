@@ -72,8 +72,6 @@ def test_run_vulture_gate_with_issue(monkeypatch: pytest.MonkeyPatch) -> None:
             "name": "foo",
             "type": "function",
             "message": "unused function 'foo'",
-            "confidence": 60,
-            "needs_validation": True,
         }
     ]
 
