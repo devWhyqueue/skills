@@ -33,7 +33,8 @@ def test_run_pyright_gate_uses_project_config(
     assert failed is False
     assert summary is None
     assert report is not None
-    assert Path(report["config"]) == config
+    assert report["config"] is not None
+    assert Path(str(report["config"])) == config
 
 
 def test_run_pyright_gate_reports_failure(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -1,6 +1,6 @@
 # clean-code
 
-Script-backed Codex skill to audit and clean up changed Python files on the current branch vs develop.
+Script-backed skill to audit and clean up uncommitted and untracked Python files. Scope is uncommitted/untracked *.py only.
 
 It enforces:
 - your custom Clean Code Rules (see clean_code_rules.yml)
@@ -15,12 +15,15 @@ Setup notes:
 - Provide a `pyrightconfig.json` in the calling project that points at the project venv.
 
 ## Run
-Run via PowerShell using the calling project’s venv:
-
-Restrict to a package (name or path):
-`& "$env:VIRTUAL_ENV\\Scripts\\python.exe" "$env:USERPROFILE\\.codex\\skills\\clean-code\\run.py" --scope etl`
+From the calling project’s venv:
 
 Audit + fix + gates (default):
-`& "$env:VIRTUAL_ENV\\Scripts\\python.exe" "$env:USERPROFILE\\.codex\\skills\\clean-code\\run.py"`
+`uv run python "$env:USERPROFILE\.codex\skills\clean-code\run.py"`
+
+Minimal run (audit + pyright + vulture only):
+`uv run python "$env:USERPROFILE\.codex\skills\clean-code\run.py" --minimal`
+
+Restrict to a package (name or path):
+`uv run python "$env:USERPROFILE\.codex\skills\clean-code\run.py" --scope etl`
 
 Tip: if you pipe JSON output to a file, write it to a temp location (e.g. `Tee-Object -FilePath $env:TEMP\\clean-code.json`) to avoid creating untracked files in your repo.

@@ -1,14 +1,11 @@
 from __future__ import annotations
 
 import ast
-import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
-from .http import _http_get_json, _http_get_json_with_params
-from .models import SonarGateResult, SonarIssue
-from .props import read_project_properties
-from .scan import run_scan
+from .http import _http_get_json_with_params
+from .models import SonarIssue
 
 
 def _component_path(component: str) -> str:
@@ -57,31 +54,6 @@ def _is_exempt_from_sonar_s138(source: str, line: int) -> bool:
     return False
 
 
-def wait_for_compute_engine(
-    task_url: str, token: str, timeout_seconds: int = 180
-) -> str:
-    deadline = time.time() + timeout_seconds
-    last_status = None
-
-    while time.time() < deadline:
-        payload = _http_get_json(task_url, token)
-        task = payload.get("task", {})
-        last_status = task.get("status")
-
-        if last_status == "SUCCESS":
-            analysis_id = task.get("analysisId")
-            if analysis_id:
-                return str(analysis_id)
-            raise RuntimeError("Compute engine returned SUCCESS without analysisId.")
-
-        if last_status in {"FAILED", "CANCELED"}:
-            raise RuntimeError(f"Compute engine task failed: status={last_status}")
-
-        time.sleep(1)
-
-    raise RuntimeError(f"Compute engine task timed out. Last status: {last_status}")
-
-
 def fetch_quality_gate(
     host_url: str,
     token: str,
@@ -90,6 +62,7 @@ def fetch_quality_gate(
     *,
     analysis_id: Optional[str] = None,
 ) -> Dict[str, Any]:
+    """Fetch quality gate project status from SonarQube API."""
     base = host_url.rstrip("/")
     params = {"projectKey": project_key, "branch": branch}
     if analysis_id:
@@ -103,6 +76,7 @@ def fetch_quality_gate(
 def fetch_project_pull_requests(
     host_url: str, token: str, project_key: str
 ) -> List[Dict[str, Any]]:
+    """Return list of pull requests for the project from SonarQube API."""
     base = host_url.rstrip("/")
     payload = _http_get_json_with_params(
         f"{base}/api/project_pull_requests/list", token, {"project": project_key}
@@ -166,8 +140,7 @@ def _fetch_issues(
                     if _is_exempt_from_sonar_s138(source, int(issue.line)):
                         excluded_s138_decorated += 1
                         continue
-                except Exception:
-                    # If we can't inspect the file, do not hide issues.
+                except (OSError, ValueError):
                     pass
 
             issues.append(issue)
@@ -197,6 +170,7 @@ def fetch_new_issues(
     *,
     page_size: int = 500,
 ) -> tuple[List[SonarIssue], Dict[str, int]]:
+    """Fetch new-code issues for branch from SonarQube API."""
     issues, stats = _fetch_issues(
         host_url=host_url,
         token=token,
@@ -219,6 +193,7 @@ def fetch_pull_request_issues(
     *,
     page_size: int = 500,
 ) -> tuple[List[SonarIssue], Dict[str, int]]:
+    """Fetch issues for a pull request from SonarQube API."""
     issues, stats = _fetch_issues(
         host_url=host_url,
         token=token,
@@ -231,102 +206,3 @@ def fetch_pull_request_issues(
         "pr_issues": stats["issues"],
         "excluded_s138_decorated": stats["excluded_s138_decorated"],
     }
-
-
-def _is_new_code_condition(cond: Dict[str, Any]) -> bool:
-    metric_key = str(cond.get("metricKey", "") or "")
-    if metric_key.startswith("new_"):
-        return True
-    if cond.get("onLeakPeriod") is True:
-        return True
-    if cond.get("periodIndex") is not None:
-        return True
-    return False
-
-
-def _evaluate_gate_status(
-    conditions: List[Dict[str, Any]], *, scope: str
-) -> Tuple[str, List[Dict[str, Any]]]:
-    if scope not in {"full", "new-code"}:
-        raise ValueError(f"Unsupported gate scope: {scope}")
-
-    relevant = (
-        conditions
-        if scope == "full"
-        else [c for c in conditions if _is_new_code_condition(c)]
-    )
-
-    if not relevant:
-        return "NONE", []
-
-    failing = [c for c in relevant if c.get("status") == "ERROR"]
-    return ("ERROR" if failing else "OK"), relevant
-
-
-def run_gate_check(
-    token: str,
-    branch: str,
-    reference_branch: Optional[str] = None,
-    gate_scope: str = "new-code",
-    fetch_new_code_issues: bool = True,
-    pull_request_key: Optional[str] = None,
-    pull_request_branch: Optional[str] = None,
-    pull_request_base: Optional[str] = None,
-    host_url: Optional[str] = None,
-    project_key: Optional[str] = None,
-    sources: Optional[str] = None,
-) -> SonarGateResult:
-    extra_args = [
-        f"-Dsonar.python.version={sys.version_info.major}.{sys.version_info.minor}",
-    ]
-    props = read_project_properties()
-    effective_host_url = host_url or props.get("sonar.host.url")
-    effective_project_key = project_key or props.get("sonar.projectKey")
-    effective_sources = sources or props.get("sonar.sources") or "src"
-
-    if not effective_host_url or not effective_project_key:
-        raise RuntimeError(
-            "Missing Sonar config. Provide `sonar-project.properties` with "
-            "`sonar.host.url` and `sonar.projectKey`, or pass --sonar-host-url / --sonar-project-key."
-        )
-
-    run_scan(
-        token=token,
-        branch=branch,
-        reference_branch=reference_branch,
-        scanner_metadata_path=None,
-        scanner_working_directory=None,
-        pull_request_key=pull_request_key,
-        pull_request_branch=pull_request_branch,
-        pull_request_base=pull_request_base,
-        host_url=effective_host_url,
-        project_key=effective_project_key,
-        sources=effective_sources,
-        extra_args=extra_args,
-    )
-
-    gate = fetch_quality_gate(effective_host_url, token, effective_project_key, branch)
-    project_status = gate.get("projectStatus", {})
-    raw_status = project_status.get("status", "NONE")
-    conditions = project_status.get("conditions", [])
-    status, scoped_conditions = _evaluate_gate_status(conditions, scope=gate_scope)
-
-    new_issues: List[SonarIssue] = []
-    issues_stats: Dict[str, int] = {}
-    if fetch_new_code_issues:
-        if pull_request_key:
-            new_issues, issues_stats = fetch_pull_request_issues(
-                effective_host_url, token, effective_project_key, pull_request_key
-            )
-        else:
-            new_issues, issues_stats = fetch_new_issues(
-                effective_host_url, token, effective_project_key, branch
-            )
-
-    return SonarGateResult(
-        status=status,
-        raw_status=raw_status,
-        conditions=scoped_conditions,
-        issues=new_issues,
-        issues_stats=issues_stats,
-    )

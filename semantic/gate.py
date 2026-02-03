@@ -8,8 +8,8 @@ from typing import Any, Optional
 import yaml
 
 from git import current_branch
-from .ledger import load_and_validate_ledger
-from .prompt import build_index_prompt
+from .validate import load_and_validate_ledger
+from .scaffold import build_index_prompt
 from .scaffold import run_scaffold
 from .utils import file_has_non_whitespace, safe_slug
 
@@ -30,6 +30,7 @@ def default_semantic_out_dir() -> Path:
 
 
 def reset_semantic_out_dir() -> Path:
+    """Clear and recreate the semantic output directory; return its path."""
     out_dir = default_semantic_out_dir()
     if out_dir.exists():
         shutil.rmtree(out_dir, ignore_errors=True)
@@ -37,62 +38,82 @@ def reset_semantic_out_dir() -> Path:
     return out_dir
 
 
-def run_semantic_gate_if_enabled(
+def _build_semantic_pass_report(out_dir: Path) -> dict[str, object]:
+    """Build the report dict when semantic gate passes (no file to scaffold)."""
+    return {
+        "status": "pass",
+        "ledger_path": str(out_dir / "semantic_ledger.yml"),
+        "ledger_template_path": str(out_dir / "semantic_ledger.template.yml"),
+        "prompt_path": str(out_dir / "semantic_prompt.md"),
+        "summary": {"fails": 0, "needs_human": 0},
+        "semantic_rules": [],
+    }
+
+
+def _run_scaffold_or_pass(
     *,
-    enabled: bool,
-    files: list[str],
-    base_ref: str,
-    head_ref: str,
-) -> Optional[dict[str, object]]:
-    filtered_files = _filter_semantic_files(files)
-    if not enabled or not filtered_files:
-        return None
-
-    if not SEMANTIC_RULES_PATH.exists():
-        raise RuntimeError(
-            f"Semantic gate enabled but rules file not found: {SEMANTIC_RULES_PATH}"
-        )
-
-    semantic_out_dir = default_semantic_out_dir()
-
-    next_file = _select_next_file(
-        files=filtered_files, out_dir=semantic_out_dir, rules_path=SEMANTIC_RULES_PATH
-    )
+    next_file: Optional[str],
+    filtered_files: list[str],
+    out_dir: Path,
+) -> dict[str, object]:
+    """Run scaffold for next_file if any; otherwise return pass report."""
     if next_file is not None:
-        semantic_report = run_scaffold(
-            base_ref=base_ref,
-            head_ref=head_ref,
+        return run_scaffold(
             files=[next_file],
             rules_path=SEMANTIC_RULES_PATH,
             max_diff_chars=SEMANTIC_MAX_DIFF_CHARS,
-            out_dir=semantic_out_dir,
+            out_dir=out_dir,
         )
-    else:
-        semantic_report = {
-            "status": "pass",
-            "ledger_path": str(semantic_out_dir / "semantic_ledger.yml"),
-            "ledger_template_path": str(
-                semantic_out_dir / "semantic_ledger.template.yml"
-            ),
-            "prompt_path": str(semantic_out_dir / "semantic_prompt.md"),
-            "summary": {"fails": 0, "needs_human": 0},
-            "semantic_rules": [],
-        }
+    return _build_semantic_pass_report(out_dir)
 
-    ledger_path = semantic_out_dir / "semantic_ledger.yml"
-    semantic_validation = load_and_validate_ledger(
-        ledger_path=ledger_path, files=filtered_files, rules_path=SEMANTIC_RULES_PATH
-    )
+
+def _write_index_prompt_after_gate(
+    *,
+    next_file: Optional[str],
+    ledger_path: Path,
+    prompt_path: Path,
+) -> None:
+    """Write index prompt (empty or for next file) after gate run."""
     if next_file is None:
-        prompt_path = semantic_out_dir / "semantic_prompt.md"
         prompt_path.write_text(
-            build_index_prompt(files_info=[], base_ref=base_ref, head_ref=head_ref),
+            build_index_prompt(files_info=[]),
             encoding="utf-8",
         )
     else:
         _rewrite_index_prompt_for_next_file(
-            ledger_path=ledger_path, prompt_path=semantic_out_dir / "semantic_prompt.md"
+            ledger_path=ledger_path, prompt_path=prompt_path
         )
+
+
+def run_semantic_gate_if_enabled(
+    *,
+    enabled: bool,
+    files: list[str],
+) -> Optional[dict[str, object]]:
+    """Run the semantic gate if enabled and files are present; return report or None."""
+    filtered_files = _filter_semantic_files(files)
+    if not enabled or not filtered_files:
+        return None
+    if not SEMANTIC_RULES_PATH.exists():
+        raise RuntimeError(
+            f"Semantic gate enabled but rules file not found: {SEMANTIC_RULES_PATH}"
+        )
+    out_dir = default_semantic_out_dir()
+    next_file = _select_next_file(
+        files=filtered_files, out_dir=out_dir, rules_path=SEMANTIC_RULES_PATH
+    )
+    semantic_report = _run_scaffold_or_pass(
+        next_file=next_file, filtered_files=filtered_files, out_dir=out_dir
+    )
+    ledger_path = out_dir / "semantic_ledger.yml"
+    semantic_validation = load_and_validate_ledger(
+        ledger_path=ledger_path, files=filtered_files, rules_path=SEMANTIC_RULES_PATH
+    )
+    _write_index_prompt_after_gate(
+        next_file=next_file,
+        ledger_path=ledger_path,
+        prompt_path=out_dir / "semantic_prompt.md",
+    )
     return {**semantic_report, **semantic_validation}
 
 
@@ -102,9 +123,9 @@ def _rewrite_index_prompt_for_next_file(
     if not ledger_path.exists():
         return
 
-    raw_any = yaml.safe_load(
-        ledger_path.read_text(encoding="utf-8", errors="replace")
-    ) or {}
+    raw_any = (
+        yaml.safe_load(ledger_path.read_text(encoding="utf-8", errors="replace")) or {}
+    )
     raw = raw_any if isinstance(raw_any, dict) else {}
     raw_files = raw.get("files", [])
     if not isinstance(raw_files, list):
@@ -115,10 +136,6 @@ def _rewrite_index_prompt_for_next_file(
         for entry in raw_files
     ):
         return
-
-    meta = raw.get("meta") if isinstance(raw.get("meta"), dict) else {}
-    base_ref = str(meta.get("base_ref", "")).strip()
-    head_ref = str(meta.get("head_ref", "")).strip()
 
     next_entry = _select_next_file_entry(raw_files)
     files_info: list[dict[str, str]] = []
@@ -132,11 +149,7 @@ def _rewrite_index_prompt_for_next_file(
         )
 
     prompt_path.write_text(
-        build_index_prompt(
-            files_info=files_info,
-            base_ref=base_ref,
-            head_ref=head_ref,
-        ),
+        build_index_prompt(files_info=files_info),
         encoding="utf-8",
     )
 

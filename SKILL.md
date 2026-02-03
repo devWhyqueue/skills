@@ -1,21 +1,18 @@
 ---
 name: clean-code
-description: Review all changed Python files on the current branch vs develop for clean code rule violations, automatically fix them if possible.
+description: Review uncommitted and untracked Python files for clean code rule violations, automatically fix them if possible.
 metadata:
   short-description: PR code cleanup
   version: 1.0.0
 ---
 
 ## What this skill does
-- Computes the diff between the current branch and develop
-- Audits changed Python files against clean_code_rules.yml
-- Runs a Vulture dead-code gate on the changed Python files
+Audits uncommitted and untracked Python files against clean_code_rules.yml
 ## Default behavior
-- Base branch: develop (fallback: origin/develop)
-- Only checks changed *.py files
-- Requires a clean working tree, or only pre-existing changes limited to the PR-changed Python files
+- Scope: uncommitted and untracked *.py files only; paths under a `test` or `tests` directory are excluded
 - `--scope` is optional; when provided, restricts the run to that package (name or path)
-- Audit, Pyright, Sonar, and Semantic run in a fixed staged flow
+- `--minimal`: run only audit + pyright + vulture; skip Sonar and Semantic gates
+- Audit, Pyright, Sonar, and Semantic run in a fixed staged flow (unless `--minimal`)
 
 ## Setup
 - Install the dependencies from this skill's `pyproject.toml` as dev deps in the calling project.
@@ -24,13 +21,16 @@ metadata:
 - Put `SONAR_TOKEN` into the calling project’s `.env` (the runner loads it from the CWD).
 
 ## How to run
-Run via PowerShell using the calling project’s venv:
+From the calling project root:
 
-Audit + autofix + gates (default):
-`& "$env:VIRTUAL_ENV\\Scripts\\python.exe" "$env:USERPROFILE\\.codex\\skills\\clean-code\\run.py"`
+- Default (audit + autofix + gates):  
+  `uv run python "$env:USERPROFILE\.codex\skills\clean-code\run.py"`
+- Minimal (audit + pyright + vulture only):  
+  `uv run python "$env:USERPROFILE\.codex\skills\clean-code\run.py" --minimal`
+- Restrict to a package:  
+  `uv run python "$env:USERPROFILE\.codex\skills\clean-code\run.py" --scope etl`
 
-Restrict to a package (name or path):
-`& "$env:VIRTUAL_ENV\\Scripts\\python.exe" "$env:USERPROFILE\\.codex\\skills\\clean-code\\run.py" --scope etl`
+Output: one JSON report to stdout. Exit 0 = pass, 2 = fail, 3 = error.
 
 ## Semantic gate
 - The runner writes an index ledger (`semantic_ledger.yml`) and prompt (`semantic_prompt.md`) plus per-file ledgers/prompts under `ledgers/` and `prompts/` in a stable temp folder per git branch.
@@ -54,7 +54,9 @@ Exit codes:
 - 2 => fail (violations or sonar gate failure)
 - 3 => internal error / misconfiguration
 
-## Procedure for Codex
-1) Run `run.py` (stages: audit-only -> audit+pyright -> audit+pyright+sonar -> audit+pyright+sonar+semantic).
-2) If it fails, fix per `clean_code_rules.yml` (or semantic ledger) and rerun. It tolerates a dirty tree only if changes are limited to the PR-changed Python files.
+## Procedure for agents
+1) From the calling project root, run the skill (use `--minimal` for fast iteration).
+2) If it fails, fix per `clean_code_rules.yml` (or semantic ledger) and rerun.
 3) Never fabricate results. Always rely on the script output.
+4) Do not reconfigure or relax pipeline tools (vulture, pyright, sonar, etc.) to make the run pass; fix the code or rules instead.
+5) Remove any temporary files created during skill usage (e.g. redirected output, scratch files) after the skill run completes.

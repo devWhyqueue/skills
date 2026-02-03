@@ -1,19 +1,21 @@
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 import yaml
 
-from semantic.ledger import dump_yaml, load_and_validate_ledger, new_ledger
-from semantic.rules import load_rules
+from semantic.ledger import dump_yaml, new_ledger
+from semantic.validate import load_and_validate_ledger
+from semantic.utils import load_rules
+
+logger = logging.getLogger(__name__)
 
 
 def _set_all_rules_pass(ledger_path: Path, *, file_path: str, rules_path: Path) -> None:
     rules = load_rules(rules_path)
     ledger = new_ledger(
         rules_path=rules_path,
-        base_ref="test-base",
-        head_ref="test-head",
         files=[file_path],
         rules=rules,
     )
@@ -31,9 +33,10 @@ def _set_all_rules_pass(ledger_path: Path, *, file_path: str, rules_path: Path) 
 
 
 def test_index_ledger_aggregates_per_file_ledgers(tmp_path: Path) -> None:
+    """load_and_validate_ledger on an index ledger returns pass when file ledgers pass."""
     rules_path = Path(__file__).resolve().parent.parent / "clean_code_rules.yml"
     sample_file = tmp_path / "example.py"
-    sample_file.write_text("print('ok')\n", encoding="utf-8")
+    sample_file.write_text("x = 1\n", encoding="utf-8")
 
     ledger_dir = tmp_path / "ledgers"
     prompt_dir = tmp_path / "prompts"
@@ -49,8 +52,6 @@ def test_index_ledger_aggregates_per_file_ledgers(tmp_path: Path) -> None:
         "meta": {
             "generated_at_utc": "2024-01-01T00:00:00+00:00",
             "rules_path": rules_path.as_posix(),
-            "base_ref": "test-base",
-            "head_ref": "test-head",
             "phase": "scaffold",
         },
         "summary": {"fails": 0, "needs_human": 0},
@@ -62,7 +63,9 @@ def test_index_ledger_aggregates_per_file_ledgers(tmp_path: Path) -> None:
             }
         ],
     }
-    index_path.write_text(yaml.safe_dump(index_payload, sort_keys=False), encoding="utf-8")
+    index_path.write_text(
+        yaml.safe_dump(index_payload, sort_keys=False), encoding="utf-8"
+    )
 
     result = load_and_validate_ledger(
         ledger_path=index_path, files=[str(sample_file)], rules_path=rules_path

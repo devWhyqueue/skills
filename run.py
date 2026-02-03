@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import logging
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -17,7 +19,15 @@ from cli.runner import run as run_skill
     show_default=False,
     help="Optional package to target (name or path). Default: all changed Python files.",
 )
+@click.option(
+    "--minimal",
+    is_flag=True,
+    default=False,
+    help="Run only audit + pyright + vulture; skip sonar and semantic gates.",
+)
 def main(**kwargs: object) -> None:
+    """Entry point: load env, run skill, exit with its return code."""
+    logging.basicConfig(level=logging.INFO, format="%(message)s", stream=sys.stdout)
     load_env_file(Path.cwd() / ".env")
 
     args = SimpleNamespace(**kwargs)

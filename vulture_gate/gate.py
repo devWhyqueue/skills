@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from audit.fix import run, tool_cmd
@@ -10,7 +11,12 @@ _VULTURE_VALIDATION_THRESHOLD = 90
 
 def _build_vulture_cmd(paths: List[str]) -> List[str]:
     unique_paths = sorted({str(path) for path in paths})
-    return [*tool_cmd("vulture"), *unique_paths]
+    cmd: List[str] = [*tool_cmd("vulture")]
+    config = Path("pyproject.toml")
+    if config.exists():
+        cmd.extend(["--config", str(config)])
+    cmd.extend(unique_paths)
+    return cmd
 
 
 def _parse_vulture_issue_line(line: str) -> Optional[Dict[str, Any]]:
@@ -85,4 +91,3 @@ def run_vulture_gate(
     if code not in (0, 3):
         return report, "Vulture exited with an unexpected status.", True
     return report, None, False
-

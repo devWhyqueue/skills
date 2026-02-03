@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from .ledger import load_and_validate_ledger
+from .validate import load_and_validate_ledger
 from .scaffold import run_scaffold
 from .gate import run_semantic_gate_if_enabled
 

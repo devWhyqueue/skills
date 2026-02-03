@@ -45,6 +45,7 @@ class TestSonarReportTaskDiscovery(unittest.TestCase):
             )
 
             self.assertIsNotNone(report)
+            assert report is not None
             self.assertEqual(report.get("ceTaskUrl"), "http://example/")
 
     def test_expands_environment_variables_in_paths(self) -> None:
