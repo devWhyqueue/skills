@@ -1,6 +1,6 @@
 ---
 name: clean-code
-description: Review all changed Python files on the current branch vs develop for clean code rule violations, automatically fix them if possible, and create a single conventional refactor commit.
+description: Review all changed Python files on the current branch vs develop for clean code rule violations, automatically fix them if possible.
 metadata:
   short-description: PR code cleanup
   version: 1.0.0
@@ -10,15 +10,12 @@ metadata:
 - Computes the diff between the current branch and develop
 - Audits changed Python files against clean_code_rules.yml
 - Runs a Vulture dead-code gate on the changed Python files
-- Produces ONE conventional commit: refactor(<scope>): clean code compliance
-
 ## Default behavior
 - Base branch: develop (fallback: origin/develop)
 - Only checks changed *.py files
-- Requires a clean working tree, or only pre-existing changes limited to the PR-changed Python files (to guarantee exactly one refactor commit)
+- Requires a clean working tree, or only pre-existing changes limited to the PR-changed Python files
 - `--scope` is optional; when provided, restricts the run to that package (name or path)
 - Audit, Pyright, Sonar, and Semantic run in a fixed staged flow
-- Commit-on-pass is always enabled
 
 ## Setup
 - Install the dependencies from this skill's `pyproject.toml` as dev deps in the calling project.
@@ -29,7 +26,7 @@ metadata:
 ## How to run
 Run via PowerShell using the calling project’s venv:
 
-Audit + autofix + gates + commit (default):
+Audit + autofix + gates (default):
 `& "$env:VIRTUAL_ENV\\Scripts\\python.exe" "$env:USERPROFILE\\.codex\\skills\\clean-code\\run.py"`
 
 Restrict to a package (name or path):
@@ -50,7 +47,6 @@ The runner prints a single JSON report (first failing stage or final pass) with:
 - pyright: { tool, exit_code, stdout, stderr, issues, ... } | null
 - sonar: { quality_gate, conditions, ... } | null
 - semantic: { ... } | null
-- commit: { attempted, created, message }
 - summary, scope, package, next_action
 
 Exit codes:
@@ -61,5 +57,4 @@ Exit codes:
 ## Procedure for Codex
 1) Run `run.py` (stages: audit-only -> audit+pyright -> audit+pyright+sonar -> audit+pyright+sonar+semantic).
 2) If it fails, fix per `clean_code_rules.yml` (or semantic ledger) and rerun. It tolerates a dirty tree only if changes are limited to the PR-changed Python files.
-3) When status=pass, ensure the single refactor commit exists.
-4) Never fabricate results. Always rely on the script output.
+3) Never fabricate results. Always rely on the script output.

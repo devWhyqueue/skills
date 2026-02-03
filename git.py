@@ -53,13 +53,6 @@ def current_branch() -> str:
     return branch if branch else "unknown"
 
 
-def has_changes() -> bool:
-    p = run(["git", "status", "--porcelain"])
-    if p.returncode != 0:
-        raise RuntimeError(f"git status failed:\n{p.stderr}")
-    return bool((p.stdout or "").strip())
-
-
 def status_entries() -> list[tuple[str, str]]:
     """
     Return (status, path) entries in the working tree (including untracked).
@@ -118,16 +111,6 @@ def ensure_clean_working_tree(
         msg += " Unrelated changes detected outside the PR-changed Python files."
     msg += " Commit/stash your current changes before running this skill."
     raise RuntimeError(msg)
-
-
-def commit(message: str, *, paths: list[str] | None = None) -> None:
-    if paths:
-        run(["git", "add", "--", *paths])
-    else:
-        run(["git", "add", "-A"])
-    p = run(["git", "commit", "-m", message])
-    if p.returncode != 0:
-        raise RuntimeError(f"git commit failed:\n{p.stderr}")
 
 
 def ls_files() -> list[str]:

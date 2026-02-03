@@ -20,7 +20,7 @@ Run via PowerShell using the calling project’s venv:
 Restrict to a package (name or path):
 `& "$env:VIRTUAL_ENV\\Scripts\\python.exe" "$env:USERPROFILE\\.codex\\skills\\clean-code\\run.py" --scope etl`
 
-Audit + fix + gates + commit (default):
+Audit + fix + gates (default):
 `& "$env:VIRTUAL_ENV\\Scripts\\python.exe" "$env:USERPROFILE\\.codex\\skills\\clean-code\\run.py"`
 
 Tip: if you pipe JSON output to a file, write it to a temp location (e.g. `Tee-Object -FilePath $env:TEMP\\clean-code.json`) to avoid creating untracked files in your repo.
