@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -8,17 +9,21 @@ from sonar.api import (
     fetch_new_issues,
     fetch_pull_request_issues,
     fetch_quality_gate,
+    poll_ce_task,
 )
 from sonar.models import SonarGateResult, SonarIssue
 from sonar.props import (
     build_sonar_report_dict,
     cleanup_sonar_artifacts,
+    discover_report_task,
     read_project_properties,
     resolve_sonar_env,
     snapshot_sonar_artifacts,
     sonar_gate_misconfigured,
 )
 from sonar.scan import run_scan
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_REFERENCE_BRANCH = "develop"
 DEFAULT_GATE_SCOPE = "new-code"
@@ -69,11 +74,14 @@ def run_sonar_gate(
     *,
     enabled: bool,
     package_dir: Optional[Path],
+    changed_files: Optional[list[str]] = None,
 ) -> tuple[Optional[dict[str, object]], Optional[str], bool]:
     """Run Sonar quality gate; return (report, error_summary, failed)."""
     if not enabled:
         return None, None, False
-    host, project, sources, token, branch = resolve_sonar_env(package_dir)
+    host, project, sources, token, branch = resolve_sonar_env(
+        package_dir, changed_files=changed_files
+    )
     if err := sonar_gate_misconfigured(host, project, token):
         return err
     assert host is not None and project is not None and token is not None
@@ -127,7 +135,8 @@ def _run_scan_for_gate(
     pull_request_key: Optional[str] = None,
     pull_request_branch: Optional[str] = None,
     pull_request_base: Optional[str] = None,
-) -> None:
+) -> Optional[Dict[str, str]]:
+    """Run pysonar scan; return report-task.txt data dict (or None)."""
     extra_args = [
         f"-Dsonar.python.version={sys.version_info.major}.{sys.version_info.minor}",
     ]
@@ -145,6 +154,22 @@ def _run_scan_for_gate(
         sources=effective_sources,
         extra_args=extra_args,
     )
+    # Try to locate report-task.txt so we can poll the CE task.
+    props = read_project_properties()
+    base_dir = Path.cwd()
+    project_base = props.get("sonar.projectBaseDir")
+    if project_base:
+        from sonar.props import resolve_path
+
+        base_dir = resolve_path(project_base, base_dir=base_dir)
+    report_data, _ = discover_report_task(
+        base_dir=base_dir,
+        props=props,
+        scanner_metadata_path=None,
+        scanner_working_directory=None,
+        temp_dir=None,
+    )
+    return report_data
 
 
 def _collect_new_issues(
@@ -187,9 +212,12 @@ def _fetch_gate_result(
     gate_scope: str,
     fetch_new_code_issues: bool,
     pull_request_key: Optional[str],
+    analysis_id: Optional[str] = None,
 ) -> SonarGateResult:
     """Fetch quality gate status and optional new issues; return SonarGateResult."""
-    gate = fetch_quality_gate(host_url, token, project_key, branch)
+    gate = fetch_quality_gate(
+        host_url, token, project_key, branch, analysis_id=analysis_id
+    )
     project_status = gate.get("projectStatus", {}) or {}
     raw_status = str(project_status.get("status", "NONE"))
     conditions = project_status.get("conditions", []) or []
@@ -224,11 +252,11 @@ def run_gate_check(
     project_key: Optional[str] = None,
     sources: Optional[str] = None,
 ) -> SonarGateResult:
-    """Run Sonar scan, fetch quality gate and optional new-code issues; return result."""
+    """Run Sonar scan, wait for analysis, fetch quality gate and optional new-code issues."""
     effective_host_url, effective_project_key, effective_sources = (
         _effective_gate_config(host_url, project_key, sources)
     )
-    _run_scan_for_gate(
+    report_data = _run_scan_for_gate(
         token,
         branch,
         effective_host_url,
@@ -239,6 +267,20 @@ def run_gate_check(
         pull_request_branch=pull_request_branch,
         pull_request_base=pull_request_base,
     )
+
+    # Wait for the SonarQube server to finish processing the analysis.
+    analysis_id: Optional[str] = None
+    ce_task_url = (report_data or {}).get("ceTaskUrl")
+    if ce_task_url:
+        logger.info("Waiting for SonarQube analysis to complete (%s)...", ce_task_url)
+        task = poll_ce_task(ce_task_url, token)
+        analysis_id = task.get("analysisId")
+    else:
+        logger.warning(
+            "Could not locate ceTaskUrl in report-task.txt; "
+            "fetching quality gate without waiting for analysis."
+        )
+
     return _fetch_gate_result(
         effective_host_url,
         token,
@@ -247,4 +289,5 @@ def run_gate_check(
         gate_scope,
         fetch_new_code_issues,
         pull_request_key,
+        analysis_id=analysis_id,
     )

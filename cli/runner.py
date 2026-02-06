@@ -128,7 +128,6 @@ def _run_full(args: SimpleNamespace) -> tuple[int, dict[str, Any]]:
     if status == "pass":
         pyright_report, pyright_summary, pyright_failed = run_pyright_gate(
             enabled=bool(args.pyright),
-            package_dir=package_dir,
             changed_files=files,
         )
         if pyright_failed:
@@ -139,6 +138,7 @@ def _run_full(args: SimpleNamespace) -> tuple[int, dict[str, Any]]:
         sonar_report, sonar_summary, sonar_failed = run_sonar_gate(
             enabled=bool(args.sonar),
             package_dir=package_dir,
+            changed_files=files,
         )
         if sonar_failed:
             status = "fail"

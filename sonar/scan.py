@@ -9,6 +9,16 @@ from typing import List, Optional
 from .props import discover_report_task, read_project_properties, resolve_path
 
 
+_PYSONAR_BOOTSTRAP = (
+    "import truststore; truststore.inject_into_ssl(); "
+    "from pysonar_scanner.__main__ import main; main()"
+)
+"""Inline bootstrap that injects the OS trust-store (needed for self-signed
+certs) and explicitly calls ``main()``.  Some pysonar versions omit the
+``if __name__ == '__main__'`` guard, so ``-m pysonar_scanner`` silently
+exits 0 without scanning."""
+
+
 def _venv_tool_cmd(tool: str) -> List[str]:
     """
     Resolve a console script from this skill's `.venv`.
@@ -17,7 +27,7 @@ def _venv_tool_cmd(tool: str) -> List[str]:
     relying on PATH or external fallbacks.
     """
     if tool == "pysonar":
-        return [sys.executable, "-m", "pysonar_scanner"]
+        return [sys.executable, "-c", _PYSONAR_BOOTSTRAP]
 
     exe_suffix = ".exe" if os.name == "nt" else ""
     sibling = Path(sys.executable).with_name(f"{tool}{exe_suffix}")

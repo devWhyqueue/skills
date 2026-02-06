@@ -52,7 +52,9 @@ def strip_embedded_property(value: str, *, property_key: str) -> str:
 
 
 def _env_host_project_sources(
-    package_dir: Optional[Path], props: Dict[str, str]
+    package_dir: Optional[Path],
+    props: Dict[str, str],
+    changed_files: Optional[list[str]] = None,
 ) -> Tuple[str, str, str]:
     """Resolve host, project, sources from env and props."""
     env_host = strip_embedded_property(
@@ -69,21 +71,33 @@ def _env_host_project_sources(
     ).strip()
     host = env_host or prop_host
     project = env_proj or prop_proj
-    sources = (os.getenv("SONAR_SOURCES") or "").strip() or (
-        package_dir.as_posix() if package_dir else ""
-    )
+
+    # Prefer restricting Sonar to changed files (already filtered by scope)
+    # unless the user explicitly overrides via SONAR_SOURCES.
+    env_sources = (os.getenv("SONAR_SOURCES") or "").strip()
+    if env_sources:
+        sources = env_sources
+    elif changed_files:
+        # Derive a minimal set of directories that contain the changed files.
+        dirs = sorted({str(Path(f).parent) for f in changed_files})
+        sources = ",".join(dirs)
+    else:
+        sources = package_dir.as_posix() if package_dir else ""
     return host, project, sources
 
 
 def resolve_sonar_env(
     package_dir: Optional[Path],
+    changed_files: Optional[list[str]] = None,
 ) -> Tuple[Optional[str], Optional[str], Optional[str], Optional[str], str]:
     """Resolve host, project, sources, token from env and props; return (host, project, sources, token, branch)."""
     sonar_token = (os.getenv("SONAR_TOKEN") or "").strip()
     if not sonar_token:
         return None, None, None, None, current_branch()
     props = read_project_properties()
-    host, project, sources = _env_host_project_sources(package_dir, props)
+    host, project, sources = _env_host_project_sources(
+        package_dir, props, changed_files=changed_files
+    )
     return (
         host or None,
         project or None,

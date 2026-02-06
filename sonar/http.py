@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-import base64
-import json
+import logging
 import urllib.parse
-import urllib.request
 from typing import Any, Dict
+
+import requests
 
 try:
     import truststore
@@ -13,18 +13,21 @@ try:
 except Exception:
     pass
 
+logger = logging.getLogger(__name__)
 
-def _basic_auth_header(token: str) -> str:
-    raw = f"{token}:".encode("utf-8")
-    return "Basic " + base64.b64encode(raw).decode("ascii")
+_REQUEST_TIMEOUT = 30  # seconds
 
 
 def _http_get_json(url: str, token: str) -> Dict[str, Any]:
-    req = urllib.request.Request(url)
-    req.add_header("Authorization", _basic_auth_header(token))
-    req.add_header("Accept", "application/json")
-    with urllib.request.urlopen(req, timeout=30) as resp:
-        return json.loads(resp.read().decode("utf-8"))
+    """GET *url* with token auth and return parsed JSON."""
+    resp = requests.get(
+        url,
+        auth=(token, ""),
+        headers={"Accept": "application/json"},
+        timeout=_REQUEST_TIMEOUT,
+    )
+    resp.raise_for_status()
+    return resp.json()  # type: ignore[no-any-return]
 
 
 def _http_get_json_with_params(

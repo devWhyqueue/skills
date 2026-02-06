@@ -23,7 +23,6 @@ def _resolve_pyright_config(path: str) -> Optional[Path]:
 def run_pyright_gate(
     *,
     enabled: bool,
-    package_dir: Optional[Path],
     changed_files: Optional[list[str]] = None,
 ) -> tuple[Optional[dict[str, object]], Optional[str], bool]:
     if not enabled:
@@ -36,15 +35,30 @@ def run_pyright_gate(
 
     cmd = tool_cmd("pyright")
     cmd.append("--outputjson")
+    if not changed_files:
+        # No changed files => nothing to type-check in this mode.
+        report: dict[str, object] = {
+            "tool": "pyright",
+            "command": [],
+            "exit_code": 0,
+            "stdout": "",
+            "stderr": "",
+            "config": (config_path.as_posix() if config_path is not None else None),
+            "level": level if config_path is None else None,
+            "package": None,
+            "issues": [],
+        }
+        return report, None, False
+
     if config_path is not None:
         cmd += ["--project", str(config_path)]
     else:
         cmd += ["--level", level]
 
-    if package_dir is not None:
-        cmd.append(str(package_dir))
-    elif changed_files:
-        cmd.extend(changed_files)
+    # Always run Pyright only on the explicitly provided changed files.
+    # `changed_files` is already filtered by `_list_changed_python_files`,
+    # which applies any package/scope restrictions.
+    cmd.extend(changed_files)
 
     code, out, err = run(cmd)
     issues = _parse_pyright_issues(out)
@@ -56,7 +70,7 @@ def run_pyright_gate(
         "stderr": err,
         "config": (config_path.as_posix() if config_path is not None else None),
         "level": level if config_path is None else None,
-        "package": (package_dir.as_posix() if package_dir is not None else None),
+        "package": None,
         "issues": issues,
     }
 
