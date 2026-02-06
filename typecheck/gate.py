@@ -24,6 +24,7 @@ def run_pyright_gate(
     *,
     enabled: bool,
     package_dir: Optional[Path],
+    changed_files: Optional[list[str]] = None,
 ) -> tuple[Optional[dict[str, object]], Optional[str], bool]:
     if not enabled:
         return None, None, False
@@ -42,6 +43,8 @@ def run_pyright_gate(
 
     if package_dir is not None:
         cmd.append(str(package_dir))
+    elif changed_files:
+        cmd.extend(changed_files)
 
     code, out, err = run(cmd)
     issues = _parse_pyright_issues(out)

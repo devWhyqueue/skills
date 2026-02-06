@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import subprocess
+from pathlib import Path
 
 
 def _run(cmd: list[str]) -> str:
@@ -25,6 +26,11 @@ def uncommitted_changed_files() -> list[str]:
     for status, path in status_entries():
         if status == "??" and path:
             paths.add(path)
+            # Expand untracked directories to concrete files.
+            if Path(path).is_dir():
+                for child in Path(path).rglob("*.py"):
+                    if child.is_file():
+                        paths.add(str(child))
     return sorted(paths)
 
 

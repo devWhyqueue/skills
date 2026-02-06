@@ -129,6 +129,7 @@ def _run_full(args: SimpleNamespace) -> tuple[int, dict[str, Any]]:
         pyright_report, pyright_summary, pyright_failed = run_pyright_gate(
             enabled=bool(args.pyright),
             package_dir=package_dir,
+            changed_files=files,
         )
         if pyright_failed:
             status = "fail"
