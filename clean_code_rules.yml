@@ -47,17 +47,14 @@ rules:
     statement: "Rewrite non-English identifiers, module names, package names, docstrings, comments, and user-facing strings to clear English."
     enforcement: SEMANTIC
   - id: CC-15
-    statement: "Rename vague or abbreviated identifiers, modules, and packages to meaningful domain names; keep naming consistent with role and type."
+    statement: "Rename vague or abbreviated identifiers, modules, and packages (e.g. util, helper, core) to meaningful domain names; keep naming consistent with role and type."
     enforcement: SEMANTIC
   - id: CC-16
     statement: "Keep logic in the file or package where it is used; extract to shared modules only when the same logic is already used or clearly will be used across multiple packages."
     enforcement: SEMANTIC
   - id: CC-17
-    statement: "Replace broad exception handling with specific exception types; add targeted handling per failure mode and re-raise unexpected errors."
-    enforcement: SEMANTIC
-  - id: CC-18
     statement: "Delete redundant \"what\" comments; keep only \"why\" comments that justify non-obvious decisions, constraints, or trade-offs."
     enforcement: SEMANTIC
-  - id: CC-19
+  - id: CC-18
     statement: "Resolve all IDE warnings."
     enforcement: MANUAL

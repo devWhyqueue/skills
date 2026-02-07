@@ -73,7 +73,7 @@ def _collect_ast_violations_imports_and_naming(
                 rule_id="naming.snake_case",
                 file=path_str,
                 line=line_no,
-                message="Identifiers must use snake_case (ALL_CAPS allowed for module constants).",
+                message="Identifiers must use snake_case (ALL_CAPS for constants; PascalCase for type aliases).",
                 evidence=evidence,
             )
         )

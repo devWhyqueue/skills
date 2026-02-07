@@ -166,6 +166,7 @@ def detect_non_snake_case_identifiers(tree: ast.AST) -> list[tuple[int, str]]:
 
     Notes:
     - allows ALL_CAPS names for module-level constants
+    - allows PascalCase for module-level assignment targets (type aliases, classes)
     - ignores self/cls
     """
 
@@ -246,11 +247,9 @@ def detect_non_snake_case_identifiers(tree: ast.AST) -> list[tuple[int, str]]:
                 if isinstance(t, ast.Name):
                     if is_snake(t.id) or is_constant(t.id):
                         continue
+                    # PascalCase at module level: type aliases and class-like names (per PEP 8 / rule)
                     if is_pascal(t.id):
-                        if isinstance(stmt, ast.AnnAssign) and stmt.annotation is not None:
-                            continue
-                        if isinstance(stmt, ast.Assign) and is_type_expr(stmt.value):
-                            continue
+                        continue
                     hits.add(
                         (
                             getattr(t, "lineno", None)
