@@ -1,61 +1,41 @@
 from __future__ import annotations
 
-import ast
 import logging
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from .http import _http_get_json, _http_get_json_with_params
-from .models import SonarIssue
+from .http import (
+    _component_path,
+    _http_get_json,
+    _http_get_json_with_params,
+    _is_exempt_from_sonar_s138,
+    SonarIssue,
+)
 
 logger = logging.getLogger(__name__)
 
 
-def _component_path(component: str) -> str:
-    if ":" in component:
-        return component.split(":", 1)[1]
-    return component
-
-
-def _is_airflow_dag_or_task_group_decorator(node: ast.AST) -> bool:
-    if isinstance(node, ast.Name):
-        return node.id in {"dag", "task_group"}
-    if isinstance(node, ast.Attribute):
-        return node.attr in {"dag", "task_group"}
-    if isinstance(node, ast.Call):
-        return _is_airflow_dag_or_task_group_decorator(node.func)
-    return False
-
-
-def _is_exempt_from_sonar_s138(source: str, line: int) -> bool:
-    """
-    Return True if `line` belongs to a function decorated with @dag or @task_group.
-
-    This is used ONLY to filter Sonar's python:S138 (function length) issues.
-    """
-    try:
-        tree = ast.parse(source)
-    except SyntaxError:
-        return False
-
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.FunctionDef):
-            continue
-
-        start = getattr(node, "lineno", None)
-        end = getattr(node, "end_lineno", None)
-        if start is None or end is None:
-            continue
-
-        if not (start <= line <= end):
-            continue
-
-        for dec in node.decorator_list:
-            if _is_airflow_dag_or_task_group_decorator(dec):
-                return True
-
-    return False
+def _poll_ce_task_step(
+    ce_task_url: str, token: str, deadline: float, timeout: int, interval: int
+) -> tuple[bool, Dict[str, Any]]:
+    """Poll once; return (True, task) if done, (False, {}) if need to retry."""
+    payload = _http_get_json(ce_task_url, token)
+    task = payload.get("task", {})
+    status = str(task.get("status", "")).upper()
+    logger.debug("CE task status: %s", status)
+    if status in {"SUCCESS", "FAILED", "CANCELED"}:
+        if status != "SUCCESS":
+            raise RuntimeError(
+                f"SonarQube analysis task {status}: {task.get('errorMessage', 'no details')}"
+            )
+        return True, task
+    if time.monotonic() >= deadline:
+        raise RuntimeError(
+            f"Timed out ({timeout}s) waiting for SonarQube analysis (last status: {status})."
+        )
+    time.sleep(interval)
+    return False, {}
 
 
 def poll_ce_task(
@@ -79,30 +59,11 @@ def poll_ce_task(
     Raises:
         RuntimeError: If the task fails, is cancelled, or polling times out.
     """
-    terminal_statuses = {"SUCCESS", "FAILED", "CANCELED"}
     deadline = time.monotonic() + timeout
-
     while True:
-        payload = _http_get_json(ce_task_url, token)
-        task = payload.get("task", {})
-        status = str(task.get("status", "")).upper()
-        logger.debug("CE task status: %s", status)
-
-        if status in terminal_statuses:
-            if status != "SUCCESS":
-                raise RuntimeError(
-                    f"SonarQube analysis task {status}: "
-                    f"{task.get('errorMessage', 'no details')}"
-                )
+        done, task = _poll_ce_task_step(ce_task_url, token, deadline, timeout, interval)
+        if done:
             return task
-
-        if time.monotonic() >= deadline:
-            raise RuntimeError(
-                f"Timed out ({timeout}s) waiting for SonarQube analysis to complete "
-                f"(last status: {status})."
-            )
-
-        time.sleep(interval)
 
 
 def fetch_quality_gate(

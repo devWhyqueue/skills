@@ -20,7 +20,7 @@ From the calling project’s venv:
 Audit + fix + gates (default):
 `uv run python "$env:USERPROFILE\.codex\skills\clean-code\run.py"`
 
-Minimal run (audit + pyright + vulture only):
+Minimal run (audit + pyright + vulture + pytest; no Sonar/Semantic):
 `uv run python "$env:USERPROFILE\.codex\skills\clean-code\run.py" --minimal`
 
 Restrict to a package (name or path):

@@ -2,12 +2,10 @@ from __future__ import annotations
 
 import os
 import shutil
-from dataclasses import asdict
 from pathlib import Path
 from typing import Dict, Optional, Tuple
 
 from git import current_branch
-from sonar.models import SonarGateResult
 
 
 def read_report_task(report_task_path: Path) -> Dict[str, str]:
@@ -147,31 +145,6 @@ def sonar_gate_misconfigured(
     return None
 
 
-def build_sonar_report_dict(
-    gate: SonarGateResult,
-    branch: str,
-    project_key: str,
-    sources: str,
-    reference_branch: str,
-    gate_scope: str,
-) -> Dict[str, object]:
-    """Build the sonar_report dict for run_sonar_gate."""
-    return {
-        "quality_gate": gate.status,
-        "quality_gate_raw": gate.raw_status,
-        "conditions": gate.conditions,
-        "new_issues": [asdict(i) for i in gate.issues],
-        "new_issues_stats": gate.issues_stats,
-        "branch": branch,
-        "reference_branch": reference_branch,
-        "gate_scope": gate_scope,
-        "pull_request_key": None,
-        "pull_request_mode": False,
-        "project_key": project_key,
-        "sources": sources or "AUTO",
-    }
-
-
 def read_project_properties(
     path: Path = Path("sonar-project.properties"),
 ) -> Dict[str, str]:
@@ -248,7 +221,6 @@ def discover_report_task(
 
 
 __all__ = [
-    "build_sonar_report_dict",
     "cleanup_sonar_artifacts",
     "discover_report_task",
     "read_project_properties",

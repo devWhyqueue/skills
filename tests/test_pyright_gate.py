@@ -27,7 +27,7 @@ def test_run_pyright_gate_uses_project_config(
     monkeypatch.setattr(pyright_gate, "run", _fake_run)
 
     report, summary, failed = pyright_gate.run_pyright_gate(
-        enabled=True, package_dir=None
+        enabled=True, changed_files=["some.py"]
     )
 
     assert failed is False
@@ -56,7 +56,7 @@ def test_run_pyright_gate_reports_failure(monkeypatch: pytest.MonkeyPatch) -> No
     monkeypatch.setattr(pyright_gate, "run", _fake_run)
 
     report, summary, failed = pyright_gate.run_pyright_gate(
-        enabled=True, package_dir=None
+        enabled=True, changed_files=["x.py"]
     )
 
     assert failed is True

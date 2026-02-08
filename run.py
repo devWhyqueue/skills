@@ -23,7 +23,13 @@ from cli.runner import run as run_skill
     "--minimal",
     is_flag=True,
     default=False,
-    help="Run only audit + pyright + vulture; skip sonar and semantic gates.",
+    help="Run only audit + pyright + vulture + pytest; skip sonar and semantic gates.",
+)
+@click.option(
+    "--min-coverage",
+    type=int,
+    default=None,
+    help="Require this minimum coverage %% for pytest to pass (default: report only, no threshold).",
 )
 def main(**kwargs: object) -> None:
     """Entry point: load env, run skill, exit with its return code."""

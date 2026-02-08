@@ -1,6 +1,6 @@
 import unittest
 
-from sonar.api import _is_exempt_from_sonar_s138
+from sonar.http import _is_exempt_from_sonar_s138
 
 
 class TestSonarS138Filter(unittest.TestCase):
