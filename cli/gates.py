@@ -25,7 +25,9 @@ def _run_vulture_pyright_pytest(
     """Run vulture, pyright, pytest; return (status, summary, vulture_report, pyright_report, pytest_report)."""
     vulture_report, pyright_report, pytest_report = None, None, None
     if args.vulture:
-        vulture_report, s, failed = run_vulture_gate(enabled=True, changed_files=files)
+        vulture_report, s, failed = run_vulture_gate(
+            enabled=True, changed_files=files, package_dir=package_dir
+        )
         if failed and status == "pass":
             status, summary = "fail", s or summary
     if status == "pass":
