@@ -82,7 +82,7 @@ def ensure_logger_scaffold(source: str) -> str:
             lines.insert(last_import_idx + 1, "")
             lines.insert(last_import_idx + 2, "logger = logging.getLogger(__name__)")
 
-    return "\n".join(lines) + ("\n" if not source.endswith("\n") else "")
+    return "\n".join(lines) + ("\n" if source.endswith("\n") else "")
 
 
 def replace_print_with_logger(source: str) -> str:
@@ -104,7 +104,7 @@ def replace_print_with_logger(source: str) -> str:
         else:
             out_lines.append(line)
 
-    return "\n".join(out_lines) + ("\n" if not source.endswith("\n") else "")
+    return "\n".join(out_lines) + ("\n" if source.endswith("\n") else "")
 
 
 def ruff_fix_and_format(files: List[str]) -> None:

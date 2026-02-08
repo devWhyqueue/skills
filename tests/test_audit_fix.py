@@ -92,6 +92,29 @@ def test_fix_files_print_replaced(tmp_path: Path) -> None:
     assert "logger.info" in p.read_text()
 
 
+def test_ruff_called_on_all_changed_set_files(tmp_path: Path) -> None:
+    """ruff_fix_and_format receives every file in the changed set, not just fix-modified ones."""
+    changed = tmp_path / "changed.py"
+    unchanged = tmp_path / "unchanged.py"
+    changed.write_text('"""M."""\nprint("hi")\n', newline="\n")
+    unchanged.write_text('x = 1\n', newline="\n")
+
+    ruff_received: list[list[str]] = []
+
+    def _capture_ruff(files: list[str]) -> None:
+        ruff_received.append(list(files))
+
+    with patch("audit.fix.ruff_fix_and_format", side_effect=_capture_ruff):
+        results = fix_files([str(changed), str(unchanged)])
+
+    assert len(results) == 2
+    assert results[0].changed is True
+    assert results[1].changed is False
+
+    assert len(ruff_received) == 1
+    assert ruff_received[0] == [str(changed), str(unchanged)]
+
+
 def test_fix_result_dataclass() -> None:
     r = FixResult(file="f.py", changed=True, actions=["a"])
     assert r.file == "f.py"

@@ -11,7 +11,7 @@ import cli.gates as gates_mod
 
 
 def test_run_gates_vulture_fail(monkeypatch: pytest.MonkeyPatch) -> None:
-    def _fake_vulture(*, enabled: bool, changed_files: list) -> tuple[Optional[Any], Optional[str], bool]:
+    def _fake_vulture(*, enabled: bool, changed_files: list, package_dir: Optional[Path] = None) -> tuple[Optional[Any], Optional[str], bool]:
         return {"tool": "vulture"}, "Vulture failed.", True
 
     def _fake_pyright(*, enabled: bool, changed_files: list) -> tuple[None, None, False]:
@@ -36,7 +36,7 @@ def test_run_gates_vulture_fail(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_run_gates_all_pass(monkeypatch: pytest.MonkeyPatch) -> None:
-    def _fake_vulture(*, enabled: bool, changed_files: list) -> tuple[dict, None, bool]:
+    def _fake_vulture(*, enabled: bool, changed_files: list, package_dir: Optional[Path] = None) -> tuple[dict, None, bool]:
         return {"tool": "vulture"}, None, False
 
     def _fake_pyright(*, enabled: bool, changed_files: list) -> tuple[dict, None, bool]:
