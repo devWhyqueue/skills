@@ -44,7 +44,7 @@ rules:
     statement: "No commented-out code blocks are allowed."
     enforcement: AUTO
   - id: CC-14
-    statement: "Rewrite non-English identifiers, module names, package names, docstrings, comments, and user-facing strings to clear English."
+    statement: "Rewrite identifiers, module names and package names to clear English. Rewrite docstrings, comments and user-facing strings to clear German."
     enforcement: SEMANTIC
   - id: CC-15
     statement: "Rename vague or abbreviated identifiers, modules, and packages (e.g. util, helper, core) to meaningful domain names; keep naming consistent with role and type."
