@@ -8,6 +8,7 @@ from typing import Optional
 from sonar.gate_check import run_gate_check
 from sonar.http import SonarGateResult
 from sonar.props import (
+    changed_file_inclusions,
     cleanup_sonar_artifacts,
     resolve_sonar_env,
     snapshot_sonar_artifacts,
@@ -24,6 +25,7 @@ def _run_gate_with_artifacts(
     host: str,
     project: str,
     sources: Optional[str],
+    inclusions: Optional[str],
     token: str,
     branch: str,
 ) -> SonarGateResult:
@@ -41,6 +43,7 @@ def _run_gate_with_artifacts(
             host_url=host,
             project_key=project,
             sources=sources,
+            inclusions=inclusions,
         )
     finally:
         cleanup_sonar_artifacts(artifact_snapshot)
@@ -76,7 +79,10 @@ def run_sonar_gate(
     if err := sonar_gate_misconfigured(host, project, token):
         return err
     assert host is not None and project is not None and token is not None
-    gate = _run_gate_with_artifacts(host, project, sources, token, branch)
+    inclusions = changed_file_inclusions(changed_files)
+    gate = _run_gate_with_artifacts(
+        host, project, sources, inclusions, token, branch
+    )
     report = build_sonar_report_dict(
         gate,
         branch,

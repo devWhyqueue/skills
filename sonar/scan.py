@@ -51,6 +51,7 @@ def run_scan(
     host_url: Optional[str] = None,
     project_key: Optional[str] = None,
     sources: Optional[str] = None,
+    inclusions: Optional[str] = None,
     extra_args: Optional[List[str]] = None,
 ) -> subprocess.CompletedProcess[str]:
     extra_args = extra_args or []
@@ -82,6 +83,8 @@ def run_scan(
         cmd.extend(["--sonar-project-key", project_key])
     if sources:
         cmd.extend(["--sonar-sources", sources])
+    if inclusions and "sonar.inclusions" not in props:
+        cmd.append(f"-Dsonar.inclusions={inclusions}")
 
     if "sonar.sourceEncoding" not in props:
         cmd.append("-Dsonar.sourceEncoding=UTF-8")

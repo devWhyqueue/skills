@@ -26,6 +26,7 @@ def _run_scan_for_gate(
     effective_host_url: str,
     effective_project_key: str,
     effective_sources: str,
+    effective_inclusions: Optional[str],
     *,
     reference_branch: Optional[str] = None,
     pull_request_key: Optional[str] = None,
@@ -51,6 +52,7 @@ def _run_scan_for_gate(
         host_url=effective_host_url,
         project_key=effective_project_key,
         sources=effective_sources,
+        inclusions=effective_inclusions,
         extra_args=extra_args,
     )
     props = read_project_properties()
@@ -192,6 +194,7 @@ def run_gate_check(
     host_url: Optional[str] = None,
     project_key: Optional[str] = None,
     sources: Optional[str] = None,
+    inclusions: Optional[str] = None,
 ) -> SonarGateResult:
     """Run Sonar scan, wait for analysis, fetch quality gate and optional new-code issues."""
     e_host, e_project, e_sources = _effective_gate_config(
@@ -203,6 +206,7 @@ def run_gate_check(
         e_host,
         e_project,
         e_sources,
+        inclusions,
         reference_branch=reference_branch,
         pull_request_key=pull_request_key,
         pull_request_branch=pull_request_branch,

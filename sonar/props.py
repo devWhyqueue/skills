@@ -76,12 +76,32 @@ def _env_host_project_sources(
     if env_sources:
         sources = env_sources
     elif changed_files:
-        # Derive a minimal set of directories that contain the changed files.
-        dirs = sorted({str(Path(f).parent) for f in changed_files})
-        sources = ",".join(dirs)
+        sources = ",".join(_minimal_source_dirs(changed_files))
     else:
         sources = package_dir.as_posix() if package_dir else ""
     return host, project, sources
+
+
+def _minimal_source_dirs(changed_files: list[str]) -> list[str]:
+    """Return non-overlapping source roots for the changed files."""
+    directories = sorted(
+        {Path(path).parent.as_posix() for path in changed_files},
+        key=lambda path: (path.count("/"), path),
+    )
+    roots: list[str] = []
+    for path in directories:
+        if any(path == root or path.startswith(f"{root}/") for root in roots):
+            continue
+        roots.append(path)
+    return roots
+
+
+def changed_file_inclusions(changed_files: Optional[list[str]]) -> Optional[str]:
+    """Return a Sonar inclusions string for the exact changed files."""
+    if not changed_files:
+        return None
+    paths = sorted({Path(path).as_posix() for path in changed_files})
+    return ",".join(paths)
 
 
 def resolve_sonar_env(
@@ -221,6 +241,7 @@ def discover_report_task(
 
 
 __all__ = [
+    "changed_file_inclusions",
     "cleanup_sonar_artifacts",
     "discover_report_task",
     "read_project_properties",

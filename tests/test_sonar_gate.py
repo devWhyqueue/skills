@@ -67,7 +67,14 @@ def test_run_sonar_gate_misconfigured_no_token(monkeypatch: pytest.MonkeyPatch) 
 
 
 def test_sonar_gate_result_success(monkeypatch: pytest.MonkeyPatch) -> None:
-    def _fake_artifact(host: str, project: str, sources: str, token: str, branch: str):
+    def _fake_artifact(
+        host: str,
+        project: str,
+        sources: str,
+        inclusions: str | None,
+        token: str,
+        branch: str,
+    ):
         return SonarGateResult("OK", "OK", [], [], {})
 
     monkeypatch.setattr(gate_mod, "resolve_sonar_env", lambda *a, **k: ("http://s", "p", "src", "t", "main"))
@@ -80,3 +87,41 @@ def test_sonar_gate_result_success(monkeypatch: pytest.MonkeyPatch) -> None:
     )
     assert failed is False
     assert report is not None
+
+
+def test_run_sonar_gate_passes_changed_file_inclusions(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, str | None] = {}
+
+    def _fake_artifact(
+        host: str,
+        project: str,
+        sources: str,
+        inclusions: str | None,
+        token: str,
+        branch: str,
+    ) -> SonarGateResult:
+        captured["sources"] = sources
+        captured["inclusions"] = inclusions
+        return SonarGateResult("OK", "OK", [], [], {})
+
+    monkeypatch.setattr(
+        gate_mod,
+        "resolve_sonar_env",
+        lambda *a, **k: ("http://s", "p", "src/foo,src/bar", "t", "main"),
+    )
+    monkeypatch.setattr(gate_mod, "sonar_gate_misconfigured", lambda *a: None)
+    monkeypatch.setattr(gate_mod, "_run_gate_with_artifacts", _fake_artifact)
+
+    report, summary, failed = gate_mod.run_sonar_gate(
+        enabled=True,
+        package_dir=None,
+        changed_files=["src/foo/a.py", "src/foo/b.py", "src/bar/c.py"],
+    )
+
+    assert failed is False
+    assert summary is None
+    assert report is not None
+    assert captured["sources"] == "src/foo,src/bar"
+    assert captured["inclusions"] == "src/bar/c.py,src/foo/a.py,src/foo/b.py"

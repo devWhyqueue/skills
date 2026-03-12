@@ -63,3 +63,17 @@ def test_run_scan_adds_default_props(monkeypatch: pytest.MonkeyPatch) -> None:
     scan_mod.run_scan("token", "main")
     assert any("sonar.sourceEncoding" in str(c) for c in seen_cmd)
     assert any("sonar.scm.provider" in str(c) for c in seen_cmd)
+
+
+def test_run_scan_adds_inclusions(monkeypatch: pytest.MonkeyPatch) -> None:
+    """run_scan forwards sonar.inclusions when provided."""
+    seen_cmd: list[str] = []
+
+    def _run(cmd, **kwargs):
+        seen_cmd.extend(str(item) for item in cmd)
+        return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(subprocess, "run", _run)
+    monkeypatch.setattr(scan_mod, "read_project_properties", lambda: {})
+    scan_mod.run_scan("token", "main", inclusions="src/foo.py,src/bar.py")
+    assert any(arg == "-Dsonar.inclusions=src/foo.py,src/bar.py" for arg in seen_cmd)
