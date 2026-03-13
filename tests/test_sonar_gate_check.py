@@ -118,3 +118,29 @@ def test_fetch_gate_result(monkeypatch: pytest.MonkeyPatch) -> None:
     )
     assert result.status == "OK"
     assert result.raw_status == "OK"
+
+
+def test_run_scan_for_gate_always_passes_explicit_coverage_path(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    def _fake_run_scan(**kwargs: Any) -> None:
+        captured.update(kwargs)
+
+    monkeypatch.setattr(gate_check, "run_scan", _fake_run_scan)
+    monkeypatch.setattr(gate_check, "read_project_properties", lambda: {})
+    monkeypatch.setattr(gate_check, "discover_report_task", lambda **_: ({}, None))
+
+    gate_check._run_scan_for_gate(
+        "token",
+        "main",
+        "https://sonar.example",
+        "project-key",
+        "src",
+        "src/foo.py",
+    )
+
+    extra_args = captured["extra_args"]
+    assert isinstance(extra_args, list)
+    assert "-Dsonar.python.coverage.reportPaths=coverage.xml" in extra_args

@@ -100,7 +100,15 @@ def changed_file_inclusions(changed_files: Optional[list[str]]) -> Optional[str]
     """Return a Sonar inclusions string for the exact changed files."""
     if not changed_files:
         return None
-    paths = sorted({Path(path).as_posix() for path in changed_files})
+    paths = sorted(
+        {
+            Path(path).as_posix()
+            for path in changed_files
+            if Path(path).name != "__init__.py"
+        }
+    )
+    if not paths:
+        return None
     return ",".join(paths)
 
 

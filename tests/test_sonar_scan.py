@@ -77,3 +77,89 @@ def test_run_scan_adds_inclusions(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(scan_mod, "read_project_properties", lambda: {})
     scan_mod.run_scan("token", "main", inclusions="src/foo.py,src/bar.py")
     assert any(arg == "-Dsonar.inclusions=src/foo.py,src/bar.py" for arg in seen_cmd)
+
+
+def test_run_scan_disables_scanner_qualitygate_wait(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """run_scan forces pysonar overrides needed by the skill wrapper."""
+    captured_env: dict[str, str] = {}
+
+    def _run(cmd, **kwargs):
+        captured_env.update(kwargs["env"])
+        return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(subprocess, "run", _run)
+    monkeypatch.setattr(scan_mod, "read_project_properties", lambda: {})
+
+    scan_mod.run_scan("token", "main")
+
+    assert captured_env["SONAR_QUALITYGATE_WAIT"] == "false"
+    assert captured_env["SONAR_SCM_EXCLUSIONS_DISABLED"] == "true"
+    assert captured_env["SONAR_PYTHON_ANALYSIS_PARALLEL"] == "false"
+
+
+def test_run_scan_timeout_includes_analysis_log_tail(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Timeouts include the tail of analysis.log for debugging scanner hangs."""
+    workdir = tmp_path / ".sonar"
+    report_dir = workdir / "scanner-report"
+    report_dir.mkdir(parents=True)
+    (report_dir / "analysis.log").write_text(
+        "line 1\nline 2\nINFO: Preprocessed 0 files\n",
+        encoding="utf-8",
+    )
+
+    def _run(cmd, **kwargs):
+        raise subprocess.TimeoutExpired(cmd=cmd, timeout=kwargs["timeout"])
+
+    monkeypatch.setattr(subprocess, "run", _run)
+    monkeypatch.setattr(scan_mod, "read_project_properties", lambda: {})
+
+    with pytest.raises(RuntimeError) as exc_info:
+        scan_mod.run_scan(
+            "token",
+            "main",
+            scanner_working_directory=workdir,
+        )
+    message = str(exc_info.value)
+    assert "timed out after" in message
+    assert "Preprocessed 0 files" in message
+
+
+def test_run_scan_timeout_ignores_stale_default_analysis_log(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Explicit workdirs should not fall back to stale .sonar analysis logs."""
+    workdir = tmp_path / ".sonar-active"
+    workdir.mkdir()
+    stale_report_dir = tmp_path / ".sonar" / "scanner-report"
+    stale_report_dir.mkdir(parents=True)
+    (stale_report_dir / "analysis.log").write_text(
+        "stale log\n",
+        encoding="utf-8",
+    )
+
+    def _run(cmd, **kwargs):
+        raise subprocess.TimeoutExpired(cmd=cmd, timeout=kwargs["timeout"])
+
+    monkeypatch.setattr(subprocess, "run", _run)
+    monkeypatch.setattr(scan_mod, "read_project_properties", lambda: {})
+    monkeypatch.chdir(tmp_path)
+
+    with pytest.raises(RuntimeError) as exc_info:
+        scan_mod.run_scan(
+            "token",
+            "main",
+            scanner_working_directory=workdir,
+        )
+
+    assert "stale log" not in str(exc_info.value)
+
+
+def test_scan_timeout_uses_updated_default_when_env_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("SONAR_SCAN_TIMEOUT_SEC", raising=False)
+    assert scan_mod._scan_timeout_seconds() == 1200

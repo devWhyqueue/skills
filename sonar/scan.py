@@ -18,6 +18,9 @@ certs) and explicitly calls ``main()``.  Some pysonar versions omit the
 ``if __name__ == '__main__'`` guard, so ``-m pysonar_scanner`` silently
 exits 0 without scanning."""
 
+DEFAULT_SCAN_TIMEOUT_SECONDS = 1200
+ANALYSIS_LOG_TAIL_LINES = 20
+
 
 def _venv_tool_cmd(tool: str) -> List[str]:
     """
@@ -39,6 +42,56 @@ def _venv_tool_cmd(tool: str) -> List[str]:
     )
 
 
+def _scan_timeout_seconds() -> int:
+    raw_value = (os.getenv("SONAR_SCAN_TIMEOUT_SEC") or "").strip()
+    if not raw_value:
+        return DEFAULT_SCAN_TIMEOUT_SECONDS
+    try:
+        timeout = int(raw_value)
+    except ValueError:
+        return DEFAULT_SCAN_TIMEOUT_SECONDS
+    return timeout if timeout > 0 else DEFAULT_SCAN_TIMEOUT_SECONDS
+
+
+def _analysis_log_tail(
+    *,
+    scanner_working_directory: Optional[Path],
+    props: dict[str, str],
+) -> str:
+    base_dir = Path.cwd()
+    project_base = props.get("sonar.projectBaseDir")
+    if project_base:
+        base_dir = resolve_path(project_base, base_dir=base_dir)
+
+    candidates: list[Path] = []
+    if scanner_working_directory is not None:
+        candidates.append(scanner_working_directory / "scanner-report" / "analysis.log")
+
+    workdir_value = props.get("sonar.working.directory")
+    if workdir_value:
+        candidates.append(
+            resolve_path(workdir_value, base_dir=base_dir) / "scanner-report" / "analysis.log"
+        )
+
+    if scanner_working_directory is None and workdir_value is None:
+        candidates.append(base_dir / ".sonar" / "scanner-report" / "analysis.log")
+        candidates.append(base_dir / ".scannerwork" / "scanner-report" / "analysis.log")
+
+    seen: set[Path] = set()
+    for candidate in candidates:
+        if candidate in seen or not candidate.exists():
+            continue
+        seen.add(candidate)
+        try:
+            lines = candidate.read_text(encoding="utf-8", errors="replace").splitlines()
+        except OSError:
+            continue
+        tail = "\n".join(lines[-ANALYSIS_LOG_TAIL_LINES:])
+        if tail:
+            return f"Last lines from {candidate}:\n{tail}"
+    return ""
+
+
 def run_scan(
     token: str,
     branch: str,
@@ -57,6 +110,15 @@ def run_scan(
     extra_args = extra_args or []
 
     env = os.environ.copy()
+    # The skill waits for the CE task itself after the scan. Leaving
+    # scanner-side quality-gate waiting enabled can block pysonar indefinitely.
+    env["SONAR_QUALITYGATE_WAIT"] = "false"
+    # WSL-mounted repos can confuse SCM-based exclusions and leave pysonar
+    # preprocessing in a zero-file loop. The skill already narrows scope with
+    # explicit sources and inclusions, so SCM exclusions are unnecessary here.
+    env["SONAR_SCM_EXCLUSIONS_DISABLED"] = "true"
+    # Python analyzer parallelism can stall on some mounted filesystems.
+    env["SONAR_PYTHON_ANALYSIS_PARALLEL"] = "false"
     skill_root = str(Path(__file__).resolve().parent.parent)
     existing_pythonpath = env.get("PYTHONPATH", "")
     env["PYTHONPATH"] = (
@@ -106,9 +168,25 @@ def run_scan(
 
     cmd += extra_args
 
-    p = subprocess.run(
-        cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=env
-    )
+    timeout_seconds = _scan_timeout_seconds()
+    try:
+        p = subprocess.run(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            env=env,
+            timeout=timeout_seconds,
+        )
+    except subprocess.TimeoutExpired as exc:
+        log_tail = _analysis_log_tail(
+            scanner_working_directory=scanner_working_directory,
+            props=props,
+        )
+        details = f"pysonar timed out after {timeout_seconds}s."
+        if log_tail:
+            details = f"{details}\n{log_tail}"
+        raise RuntimeError(details) from exc
     code, out, err = p.returncode, p.stdout, p.stderr
     if code != 0:
         try:
@@ -126,7 +204,12 @@ def run_scan(
             if report is None:
                 raise RuntimeError("Missing report-task.txt (pysonar output).")
         except Exception as e:
+            log_tail = _analysis_log_tail(
+                scanner_working_directory=scanner_working_directory,
+                props=props,
+            )
+            extra = f"\n{log_tail}" if log_tail else ""
             raise RuntimeError(
-                f"pysonar failed (exit {code}).\nSTDOUT:\n{out}\nSTDERR:\n{err}"
+                f"pysonar failed (exit {code}).\nSTDOUT:\n{out}\nSTDERR:\n{err}{extra}"
             ) from e
     return p

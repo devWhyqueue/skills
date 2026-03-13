@@ -117,7 +117,12 @@ def test_run_sonar_gate_passes_changed_file_inclusions(
     report, summary, failed = gate_mod.run_sonar_gate(
         enabled=True,
         package_dir=None,
-        changed_files=["src/foo/a.py", "src/foo/b.py", "src/bar/c.py"],
+        changed_files=[
+            "src/foo/__init__.py",
+            "src/foo/a.py",
+            "src/foo/b.py",
+            "src/bar/c.py",
+        ],
     )
 
     assert failed is False

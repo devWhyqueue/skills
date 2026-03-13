@@ -15,19 +15,25 @@ def test_cov_modules_from_changed_files_empty() -> None:
 
 
 def test_cov_modules_from_changed_files_single() -> None:
-    assert pytest_gate._cov_modules_from_changed_files(["src/etl/foo.py"]) == ["src.etl.foo"]
+    assert pytest_gate._cov_modules_from_changed_files(["src/etl/foo.py"]) == ["etl.foo"]
 
 
 def test_cov_modules_from_changed_files_dedupe() -> None:
     assert pytest_gate._cov_modules_from_changed_files(
         ["src/etl/foo.py", "src/etl/bar.py", "src/report/baz.py"]
-    ) == ["src.etl.bar", "src.etl.foo", "src.report.baz"]
+    ) == ["etl.bar", "etl.foo", "report.baz"]
 
 
 def test_cov_modules_from_changed_files_skips_non_py() -> None:
     assert pytest_gate._cov_modules_from_changed_files(["cli/runner.py", "readme.md"]) == [
         "cli.runner",
     ]
+
+
+def test_cov_modules_from_changed_files_skips_tests() -> None:
+    assert pytest_gate._cov_modules_from_changed_files(
+        ["tests/test_runner.py", "src/pkg/tests/test_helper.py", "src/pkg/module.py"]
+    ) == ["pkg.module"]
 
 
 def test_cov_modules_from_changed_files_skips_init() -> None:
@@ -170,8 +176,8 @@ def test_build_pytest_cmd_with_changed_files(monkeypatch: pytest.MonkeyPatch) ->
     cmd, path = pytest_gate._build_pytest_cmd(["src/a/foo.py", "src/b/bar.py"], 90)
     assert "--cov" in cmd
     # Coverage restricted to changed files (module names)
-    assert "src.a.foo" in cmd
-    assert "src.b.bar" in cmd
+    assert "a.foo" in cmd
+    assert "b.bar" in cmd
     assert "xml:coverage.xml" in cmd
     assert "--cov-fail-under=90" in cmd
     assert path is not None

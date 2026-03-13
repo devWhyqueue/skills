@@ -37,9 +37,9 @@ def _run_scan_for_gate(
     extra_args = [
         f"-Dsonar.python.version={sys.version_info.major}.{sys.version_info.minor}",
     ]
-    coverage_xml = Path("coverage.xml")
-    if coverage_xml.exists():
-        extra_args.append("-Dsonar.python.coverage.reportPaths=coverage.xml")
+    # Keep Sonar on the explicit report path so it does not fall back to the
+    # very slow default coverage-report search when the file is missing.
+    extra_args.append("-Dsonar.python.coverage.reportPaths=coverage.xml")
     run_scan(
         token=token,
         branch=branch,

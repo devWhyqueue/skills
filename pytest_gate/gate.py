@@ -11,6 +11,27 @@ COVERAGE_REPORT_FILENAME = "coverage.xml"
 PYTEST_EXIT_NO_TESTS_COLLECTED = 5
 
 
+def _coverage_module_from_path(path: str) -> Optional[str]:
+    """Map a changed file path to the importable module name used by pytest-cov."""
+    if not path.endswith(".py"):
+        return None
+
+    path_obj = Path(path)
+    parts = path_obj.parts
+    if not parts or path_obj.name == "__init__.py":
+        return None
+
+    if "tests" in parts or "test" in parts:
+        return None
+
+    module_parts = list(path_obj.with_suffix("").parts)
+    if module_parts and module_parts[0] == "src":
+        module_parts = module_parts[1:]
+    if not module_parts:
+        return None
+    return ".".join(module_parts)
+
+
 def _cov_modules_from_changed_files(changed_files: List[str]) -> List[str]:
     """Return module names for changed .py files so coverage is restricted to those files only.
     Excludes __init__.py so empty package inits do not drag down the percentage.
@@ -20,15 +41,9 @@ def _cov_modules_from_changed_files(changed_files: List[str]) -> List[str]:
     seen: set[str] = set()
     out: List[str] = []
     for f in changed_files:
-        if not f.endswith(".py"):
+        mod = _coverage_module_from_path(f)
+        if mod is None:
             continue
-        if Path(f).name == "__init__.py":
-            continue
-        p = Path(f).with_suffix("")
-        parts = p.parts
-        if not parts:
-            continue
-        mod = ".".join(parts)
         if mod not in seen:
             seen.add(mod)
             out.append(mod)
