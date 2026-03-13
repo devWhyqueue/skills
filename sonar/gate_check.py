@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import logging
+import os
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -18,6 +20,16 @@ from sonar.props import discover_report_task, read_project_properties, resolve_p
 from sonar.scan import run_scan
 
 logger = logging.getLogger(__name__)
+
+
+def _sonar_temp_base_dir() -> Path:
+    """Return the base temp dir for Sonar scratch data."""
+    configured = (os.getenv("SONAR_TMPDIR") or "").strip()
+    if configured:
+        return Path(configured).expanduser().resolve()
+    if os.name != "nt":
+        return Path("/tmp")
+    return Path(tempfile.gettempdir()).resolve()
 
 
 def _run_scan_for_gate(
@@ -40,34 +52,44 @@ def _run_scan_for_gate(
     # Keep Sonar on the explicit report path so it does not fall back to the
     # very slow default coverage-report search when the file is missing.
     extra_args.append("-Dsonar.python.coverage.reportPaths=coverage.xml")
-    run_scan(
-        token=token,
-        branch=branch,
-        reference_branch=reference_branch,
-        scanner_metadata_path=None,
-        scanner_working_directory=None,
-        pull_request_key=pull_request_key,
-        pull_request_branch=pull_request_branch,
-        pull_request_base=pull_request_base,
-        host_url=effective_host_url,
-        project_key=effective_project_key,
-        sources=effective_sources,
-        inclusions=effective_inclusions,
-        extra_args=extra_args,
-    )
-    props = read_project_properties()
-    base_dir = Path.cwd()
-    project_base = props.get("sonar.projectBaseDir")
-    if project_base:
-        base_dir = resolve_path(project_base, base_dir=base_dir)
-    report_data, _ = discover_report_task(
-        base_dir=base_dir,
-        props=props,
-        scanner_metadata_path=None,
-        scanner_working_directory=None,
-        temp_dir=None,
-    )
-    return report_data
+    temp_root = _sonar_temp_base_dir()
+    temp_root.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(
+        prefix="clean-code-sonar-",
+        dir=temp_root,
+    ) as temp_dir_name:
+        temp_dir = Path(temp_dir_name)
+        scanner_working_directory = temp_dir / "workdir"
+        scanner_working_directory.mkdir(parents=True, exist_ok=True)
+        scanner_metadata_path = temp_dir / "report-task.txt"
+        run_scan(
+            token=token,
+            branch=branch,
+            reference_branch=reference_branch,
+            scanner_metadata_path=scanner_metadata_path,
+            scanner_working_directory=scanner_working_directory,
+            pull_request_key=pull_request_key,
+            pull_request_branch=pull_request_branch,
+            pull_request_base=pull_request_base,
+            host_url=effective_host_url,
+            project_key=effective_project_key,
+            sources=effective_sources,
+            inclusions=effective_inclusions,
+            extra_args=extra_args,
+        )
+        props = read_project_properties()
+        base_dir = Path.cwd()
+        project_base = props.get("sonar.projectBaseDir")
+        if project_base:
+            base_dir = resolve_path(project_base, base_dir=base_dir)
+        report_data, _ = discover_report_task(
+            base_dir=base_dir,
+            props=props,
+            scanner_metadata_path=scanner_metadata_path,
+            scanner_working_directory=scanner_working_directory,
+            temp_dir=temp_dir,
+        )
+        return report_data
 
 
 def _wait_for_analysis(
@@ -169,7 +191,7 @@ def _fetch_gate_result(
     )
     new_issues: List[SonarIssue] = []
     issues_stats: Dict[str, int] = {}
-    if fetch_new_code_issues:
+    if fetch_new_code_issues and status != "OK":
         new_issues, issues_stats = _collect_new_issues(
             host_url, token, project_key, pull_request_key, branch
         )

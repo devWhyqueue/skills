@@ -6,6 +6,7 @@ from typing import Any
 import pytest
 
 import sonar.gate as sonar_gate
+import sonar.props as sonar_props
 
 
 def test_run_sonar_gate_strips_embedded_property_prefix_from_props(
@@ -40,3 +41,20 @@ def test_run_sonar_gate_strips_embedded_property_prefix_from_props(
     assert failed is False
     assert summary is None
     assert report is not None
+
+
+def test_changed_files_prefer_exact_sources_over_broad_parent_dirs() -> None:
+    host, project, sources = sonar_props._env_host_project_sources(
+        package_dir=None,
+        props={},
+        changed_files=[
+            "src/foo/__init__.py",
+            "src/foo/a.py",
+            "src/foo/nested/b.py",
+            "src/top_level.py",
+        ],
+    )
+
+    assert host == ""
+    assert project == ""
+    assert sources == "src/foo/a.py,src/foo/nested/b.py,src/top_level.py"

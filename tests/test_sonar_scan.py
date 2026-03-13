@@ -62,7 +62,8 @@ def test_run_scan_adds_default_props(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(scan_mod, "read_project_properties", lambda: {})
     scan_mod.run_scan("token", "main")
     assert any("sonar.sourceEncoding" in str(c) for c in seen_cmd)
-    assert any("sonar.scm.provider" in str(c) for c in seen_cmd)
+    assert any("sonar.scm.disabled=true" in str(c) for c in seen_cmd)
+    assert not any("sonar.scm.provider" in str(c) for c in seen_cmd)
 
 
 def test_run_scan_adds_inclusions(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -96,7 +97,30 @@ def test_run_scan_disables_scanner_qualitygate_wait(
 
     assert captured_env["SONAR_QUALITYGATE_WAIT"] == "false"
     assert captured_env["SONAR_SCM_EXCLUSIONS_DISABLED"] == "true"
+    assert captured_env["SONAR_SCM_DISABLED"] == "true"
     assert captured_env["SONAR_PYTHON_ANALYSIS_PARALLEL"] == "false"
+
+
+def test_run_scan_skips_duplicate_inclusions_when_sources_match(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seen_cmd: list[str] = []
+
+    def _run(cmd, **kwargs):
+        seen_cmd.extend(str(item) for item in cmd)
+        return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(subprocess, "run", _run)
+    monkeypatch.setattr(scan_mod, "read_project_properties", lambda: {})
+
+    scan_mod.run_scan(
+        "token",
+        "main",
+        sources="src/foo.py,src/bar.py",
+        inclusions="src/foo.py,src/bar.py",
+    )
+
+    assert not any(arg.startswith("-Dsonar.inclusions=") for arg in seen_cmd)
 
 
 def test_run_scan_timeout_includes_analysis_log_tail(

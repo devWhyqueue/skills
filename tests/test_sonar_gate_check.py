@@ -71,6 +71,22 @@ def test_effective_gate_config_missing_raises(monkeypatch: pytest.MonkeyPatch) -
         gate_check._effective_gate_config(None, None, None)
 
 
+def test_sonar_temp_base_dir_defaults_to_tmp_on_posix(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("SONAR_TMPDIR", raising=False)
+    if gate_check.os.name == "nt":
+        pytest.skip("POSIX-only behavior")
+    assert gate_check._sonar_temp_base_dir() == Path("/tmp")
+
+
+def test_sonar_temp_base_dir_uses_override(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("SONAR_TMPDIR", str(tmp_path))
+    assert gate_check._sonar_temp_base_dir() == tmp_path.resolve()
+
+
 def test_wait_for_analysis_no_ce_task_url() -> None:
     result = gate_check._wait_for_analysis({}, "token")
     assert result is None
@@ -118,10 +134,81 @@ def test_fetch_gate_result(monkeypatch: pytest.MonkeyPatch) -> None:
     )
     assert result.status == "OK"
     assert result.raw_status == "OK"
+    assert result.issues == []
+
+
+def test_fetch_gate_result_skips_issue_fetch_on_success(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _fake_fetch_qg(
+        host: str, token: str, project: str, branch: str, **kwargs: Any
+    ) -> Dict[str, Any]:
+        return {
+            "projectStatus": {
+                "status": "OK",
+                "conditions": [
+                    {"metricKey": "new_coverage", "status": "OK"},
+                ],
+            }
+        }
+
+    def _boom(*args: Any, **kwargs: Any) -> Any:
+        raise AssertionError("issue fetch should be skipped when gate is green")
+
+    monkeypatch.setattr(gate_check, "fetch_quality_gate", _fake_fetch_qg)
+    monkeypatch.setattr(gate_check, "_collect_new_issues", _boom)
+
+    result = gate_check._fetch_gate_result(
+        "http://h", "t", "proj", "main", "new-code", True, None
+    )
+
+    assert result.status == "OK"
+    assert result.issues == []
+    assert result.issues_stats == {}
+
+
+def test_fetch_gate_result_fetches_issues_on_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _fake_fetch_qg(
+        host: str, token: str, project: str, branch: str, **kwargs: Any
+    ) -> Dict[str, Any]:
+        return {
+            "projectStatus": {
+                "status": "ERROR",
+                "conditions": [
+                    {"metricKey": "new_violations", "status": "ERROR"},
+                ],
+            }
+        }
+
+    captured: dict[str, str] = {}
+
+    def _fake_collect(
+        host: str,
+        token: str,
+        project: str,
+        pull_request_key: str | None,
+        branch: str,
+    ) -> tuple[list[Any], dict[str, int]]:
+        captured["branch"] = branch
+        return [], {"new_issues": 0}
+
+    monkeypatch.setattr(gate_check, "fetch_quality_gate", _fake_fetch_qg)
+    monkeypatch.setattr(gate_check, "_collect_new_issues", _fake_collect)
+
+    result = gate_check._fetch_gate_result(
+        "http://h", "t", "proj", "main", "new-code", True, None
+    )
+
+    assert result.status == "ERROR"
+    assert captured["branch"] == "main"
+    assert result.issues_stats == {"new_issues": 0}
 
 
 def test_run_scan_for_gate_always_passes_explicit_coverage_path(
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
     captured: dict[str, object] = {}
 
@@ -131,6 +218,7 @@ def test_run_scan_for_gate_always_passes_explicit_coverage_path(
     monkeypatch.setattr(gate_check, "run_scan", _fake_run_scan)
     monkeypatch.setattr(gate_check, "read_project_properties", lambda: {})
     monkeypatch.setattr(gate_check, "discover_report_task", lambda **_: ({}, None))
+    monkeypatch.setenv("SONAR_TMPDIR", str(tmp_path))
 
     gate_check._run_scan_for_gate(
         "token",
@@ -144,3 +232,6 @@ def test_run_scan_for_gate_always_passes_explicit_coverage_path(
     extra_args = captured["extra_args"]
     assert isinstance(extra_args, list)
     assert "-Dsonar.python.coverage.reportPaths=coverage.xml" in extra_args
+    assert captured["scanner_working_directory"] is not None
+    assert captured["scanner_metadata_path"] is not None
+    assert str(captured["scanner_working_directory"]).startswith(str(tmp_path))

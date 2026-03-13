@@ -76,7 +76,8 @@ def _env_host_project_sources(
     if env_sources:
         sources = env_sources
     elif changed_files:
-        sources = ",".join(_minimal_source_dirs(changed_files))
+        exact_sources = _changed_source_paths(changed_files)
+        sources = ",".join(exact_sources or _minimal_source_dirs(changed_files))
     else:
         sources = package_dir.as_posix() if package_dir else ""
     return host, project, sources
@@ -94,6 +95,17 @@ def _minimal_source_dirs(changed_files: list[str]) -> list[str]:
             continue
         roots.append(path)
     return roots
+
+
+def _changed_source_paths(changed_files: list[str]) -> list[str]:
+    """Return exact changed source files for sonar.sources when possible."""
+    return sorted(
+        {
+            Path(path).as_posix()
+            for path in changed_files
+            if Path(path).suffix == ".py" and Path(path).name != "__init__.py"
+        }
+    )
 
 
 def changed_file_inclusions(changed_files: Optional[list[str]]) -> Optional[str]:

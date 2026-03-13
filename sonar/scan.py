@@ -117,6 +117,7 @@ def run_scan(
     # preprocessing in a zero-file loop. The skill already narrows scope with
     # explicit sources and inclusions, so SCM exclusions are unnecessary here.
     env["SONAR_SCM_EXCLUSIONS_DISABLED"] = "true"
+    env["SONAR_SCM_DISABLED"] = "true"
     # Python analyzer parallelism can stall on some mounted filesystems.
     env["SONAR_PYTHON_ANALYSIS_PARALLEL"] = "false"
     skill_root = str(Path(__file__).resolve().parent.parent)
@@ -145,12 +146,15 @@ def run_scan(
         cmd.extend(["--sonar-project-key", project_key])
     if sources:
         cmd.extend(["--sonar-sources", sources])
-    if inclusions and "sonar.inclusions" not in props:
+    if inclusions and inclusions != sources and "sonar.inclusions" not in props:
         cmd.append(f"-Dsonar.inclusions={inclusions}")
 
     if "sonar.sourceEncoding" not in props:
         cmd.append("-Dsonar.sourceEncoding=UTF-8")
-    if "sonar.scm.provider" not in props:
+    scm_disabled = props.get("sonar.scm.disabled", "").strip().lower() == "true"
+    if "sonar.scm.disabled" not in props:
+        cmd.append("-Dsonar.scm.disabled=true")
+    elif not scm_disabled and "sonar.scm.provider" not in props:
         cmd.append("-Dsonar.scm.provider=git")
     if "sonar.exclusions" not in props:
         cmd.append(

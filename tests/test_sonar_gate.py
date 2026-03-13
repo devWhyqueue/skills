@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any, cast
 from unittest.mock import MagicMock
 
 import pytest
@@ -43,9 +44,10 @@ def test_build_sonar_report_dict_with_issues() -> None:
     report = gate_mod.build_sonar_report_dict(
         gate, "main", "proj", "src", "develop", "new-code"
     )
+    new_issues = cast(list[dict[str, Any]], report["new_issues"])
     assert report["quality_gate"] == "ERROR"
-    assert len(report["new_issues"]) == 1
-    assert report["new_issues"][0]["message"] == "m"
+    assert len(new_issues) == 1
+    assert new_issues[0]["message"] == "m"
 
 
 def test_run_sonar_gate_disabled() -> None:
@@ -109,7 +111,13 @@ def test_run_sonar_gate_passes_changed_file_inclusions(
     monkeypatch.setattr(
         gate_mod,
         "resolve_sonar_env",
-        lambda *a, **k: ("http://s", "p", "src/foo,src/bar", "t", "main"),
+        lambda *a, **k: (
+            "http://s",
+            "p",
+            "src/bar/c.py,src/foo/a.py,src/foo/b.py",
+            "t",
+            "main",
+        ),
     )
     monkeypatch.setattr(gate_mod, "sonar_gate_misconfigured", lambda *a: None)
     monkeypatch.setattr(gate_mod, "_run_gate_with_artifacts", _fake_artifact)
@@ -128,5 +136,5 @@ def test_run_sonar_gate_passes_changed_file_inclusions(
     assert failed is False
     assert summary is None
     assert report is not None
-    assert captured["sources"] == "src/foo,src/bar"
+    assert captured["sources"] == "src/bar/c.py,src/foo/a.py,src/foo/b.py"
     assert captured["inclusions"] == "src/bar/c.py,src/foo/a.py,src/foo/b.py"
