@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import time
 from pathlib import Path
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from typing import Any, Dict, List, Optional
 
 from .http import (
@@ -14,13 +15,37 @@ from .http import (
 )
 
 logger = logging.getLogger(__name__)
+FAST_POLL_INTERVALS = (0.25, 0.5, 1.0, 2.0)
+
+
+def _append_cache_buster(url: str) -> str:
+    """Append a unique query parameter so CE task polling never reuses stale responses."""
+    parts = urlsplit(url)
+    query = dict(parse_qsl(parts.query, keep_blank_values=True))
+    query["_ts"] = str(time.time_ns())
+    return urlunsplit(
+        (parts.scheme, parts.netloc, parts.path, urlencode(query), parts.fragment)
+    )
+
+
+def _next_poll_interval(*, attempt: int, default_interval: int) -> float:
+    """Use short waits for fresh CE tasks, then fall back to the configured interval."""
+    if attempt < len(FAST_POLL_INTERVALS):
+        return FAST_POLL_INTERVALS[attempt]
+    return float(default_interval)
 
 
 def _poll_ce_task_step(
-    ce_task_url: str, token: str, deadline: float, timeout: int, interval: int
+    ce_task_url: str,
+    token: str,
+    deadline: float,
+    timeout: int,
+    interval: int,
+    *,
+    attempt: int,
 ) -> tuple[bool, Dict[str, Any]]:
     """Poll once; return (True, task) if done, (False, {}) if need to retry."""
-    payload = _http_get_json(ce_task_url, token)
+    payload = _http_get_json(_append_cache_buster(ce_task_url), token)
     task = payload.get("task", {})
     status = str(task.get("status", "")).upper()
     logger.debug("CE task status: %s", status)
@@ -34,7 +59,7 @@ def _poll_ce_task_step(
         raise RuntimeError(
             f"Timed out ({timeout}s) waiting for SonarQube analysis (last status: {status})."
         )
-    time.sleep(interval)
+    time.sleep(_next_poll_interval(attempt=attempt, default_interval=interval))
     return False, {}
 
 
@@ -60,10 +85,19 @@ def poll_ce_task(
         RuntimeError: If the task fails, is cancelled, or polling times out.
     """
     deadline = time.monotonic() + timeout
+    attempt = 0
     while True:
-        done, task = _poll_ce_task_step(ce_task_url, token, deadline, timeout, interval)
+        done, task = _poll_ce_task_step(
+            ce_task_url,
+            token,
+            deadline,
+            timeout,
+            interval,
+            attempt=attempt,
+        )
         if done:
             return task
+        attempt += 1
 
 
 def fetch_quality_gate(

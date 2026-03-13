@@ -7,6 +7,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+import sonar.api as sonar_api
 import sonar.gate_check as gate_check
 
 
@@ -99,6 +100,42 @@ def test_wait_for_analysis_with_ce_task(monkeypatch: pytest.MonkeyPatch) -> None
     monkeypatch.setattr(gate_check, "poll_ce_task", _fake_poll)
     result = gate_check._wait_for_analysis({"ceTaskUrl": "http://x"}, "token")
     assert result == "aid123"
+
+
+def test_append_cache_buster_preserves_existing_query() -> None:
+    url = sonar_api._append_cache_buster("https://sonar/api/ce/task?id=123")
+    assert "id=123" in url
+    assert "_ts=" in url
+
+
+def test_next_poll_interval_is_fast_initially() -> None:
+    assert sonar_api._next_poll_interval(attempt=0, default_interval=5) == 0.25
+    assert sonar_api._next_poll_interval(attempt=1, default_interval=5) == 0.5
+    assert sonar_api._next_poll_interval(attempt=4, default_interval=5) == 5.0
+
+
+def test_poll_ce_task_uses_cache_busted_url_and_fast_sleep(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[str] = []
+    sleeps: list[float] = []
+
+    def _fake_http_get_json(url: str, token: str) -> dict[str, Any]:
+        calls.append(url)
+        if len(calls) == 1:
+            return {"task": {"status": "IN_PROGRESS"}}
+        return {"task": {"status": "SUCCESS", "analysisId": "aid-1"}}
+
+    monkeypatch.setattr(sonar_api, "_http_get_json", _fake_http_get_json)
+    monkeypatch.setattr(sonar_api.time, "sleep", lambda secs: sleeps.append(secs))
+
+    task = sonar_api.poll_ce_task("https://sonar/api/ce/task?id=123", "token")
+
+    assert task["analysisId"] == "aid-1"
+    assert len(calls) == 2
+    assert all("_ts=" in url for url in calls)
+    assert all("id=123" in url for url in calls)
+    assert sleeps == [0.25]
 
 
 def test_collect_new_issues_branch(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import ast
 import logging
+import time
 import urllib.parse
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
@@ -84,7 +85,11 @@ def _http_get_json(url: str, token: str) -> Dict[str, Any]:
     resp = requests.get(
         url,
         auth=(token, ""),
-        headers={"Accept": "application/json"},
+        headers={
+            "Accept": "application/json",
+            "Cache-Control": "no-cache, no-store, max-age=0",
+            "Pragma": "no-cache",
+        },
         timeout=_REQUEST_TIMEOUT,
     )
     resp.raise_for_status()
@@ -94,5 +99,5 @@ def _http_get_json(url: str, token: str) -> Dict[str, Any]:
 def _http_get_json_with_params(
     base_url: str, token: str, params: Dict[str, Any]
 ) -> Dict[str, Any]:
-    url = f"{base_url}?{urllib.parse.urlencode(params)}"
+    url = f"{base_url}?{urllib.parse.urlencode({**params, '_ts': time.time_ns()})}"
     return _http_get_json(url, token)

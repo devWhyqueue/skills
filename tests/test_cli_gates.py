@@ -33,6 +33,7 @@ def test_run_gates_vulture_fail(monkeypatch: pytest.MonkeyPatch) -> None:
     assert status == "fail"
     assert "Vulture" in (summary or "")
     assert v is not None
+    assert "duration_sec" in v
 
 
 def test_run_gates_all_pass(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -59,6 +60,9 @@ def test_run_gates_all_pass(monkeypatch: pytest.MonkeyPatch) -> None:
     assert v is not None
     assert pr is not None
     assert py is not None
+    assert "duration_sec" in v
+    assert "duration_sec" in pr
+    assert "duration_sec" in py
 
 
 def test_run_gates_semantic_fail(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -81,6 +85,9 @@ def test_run_gates_semantic_fail(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(gates_mod, "run_semantic_gate_if_enabled", _fake_semantic)
 
     args = SimpleNamespace(vulture=True, pyright=True, pytest=True, sonar=False, semantic=True)
-    status, summary, *_ = gates_mod.run_gates(args, ["x.py"], None, "pass", "ok")
+    status, summary, *reports = gates_mod.run_gates(args, ["x.py"], None, "pass", "ok")
     assert status == "fail"
     assert summary is not None
+    semantic_report = reports[-1]
+    assert semantic_report is not None
+    assert "duration_sec" in semantic_report

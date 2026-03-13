@@ -1,6 +1,8 @@
 """Tests for sonar.http (SonarIssue, SonarGateResult, _component_path, _is_exempt_from_sonar_s138)."""
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 
 from sonar.http import (
@@ -77,3 +79,27 @@ def normal_func():
 
 def test_is_exempt_from_sonar_s138_syntax_error() -> None:
     assert _is_exempt_from_sonar_s138("def broken(", 1) is False
+
+
+def test_http_get_json_with_params_adds_cache_buster(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, Any] = {}
+
+    def _fake_get_json(url: str, token: str) -> dict[str, Any]:
+        captured["url"] = url
+        captured["token"] = token
+        return {"ok": True}
+
+    monkeypatch.setattr("sonar.http._http_get_json", _fake_get_json)
+
+    from sonar.http import _http_get_json_with_params
+
+    result = _http_get_json_with_params(
+        "https://sonar.example/api/ce/task", "secret", {"id": "123"}
+    )
+
+    assert result == {"ok": True}
+    assert captured["token"] == "secret"
+    assert "id=123" in captured["url"]
+    assert "_ts=" in captured["url"]
