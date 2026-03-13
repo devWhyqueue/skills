@@ -80,6 +80,21 @@ def test_run_scan_adds_inclusions(monkeypatch: pytest.MonkeyPatch) -> None:
     assert any(arg == "-Dsonar.inclusions=src/foo.py,src/bar.py" for arg in seen_cmd)
 
 
+def test_run_scan_adds_project_base_dir(monkeypatch: pytest.MonkeyPatch) -> None:
+    """run_scan forwards sonar.projectBaseDir when provided explicitly."""
+    seen_cmd: list[str] = []
+
+    def _run(cmd, **kwargs):
+        seen_cmd.extend(str(item) for item in cmd)
+        return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(subprocess, "run", _run)
+    monkeypatch.setattr(scan_mod, "read_project_properties", lambda: {})
+    scan_mod.run_scan("token", "main", project_base_dir=Path("/tmp/scan-base"))
+    assert "--sonar-project-base-dir" in seen_cmd
+    assert "/tmp/scan-base" in seen_cmd
+
+
 def test_run_scan_disables_scanner_qualitygate_wait(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

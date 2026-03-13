@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
+import shutil
 import sys
 import tempfile
 from pathlib import Path
@@ -32,6 +33,54 @@ def _sonar_temp_base_dir() -> Path:
     return Path(tempfile.gettempdir()).resolve()
 
 
+def _split_csv_paths(value: Optional[str]) -> list[str]:
+    """Split comma-delimited Sonar path lists, dropping empty entries."""
+    if not value:
+        return []
+    return [item.strip() for item in value.split(",") if item.strip()]
+
+
+def _copy_analysis_inputs(
+    *,
+    temp_dir: Path,
+    effective_sources: str,
+    effective_inclusions: Optional[str],
+) -> tuple[Optional[Path], str, Optional[str], str]:
+    """Create a slim project tree for file-scoped scans, else fall back.
+
+    The Python coverage sensor resolves report paths by walking the project
+    base dir. On mounted workspaces with large repo-root directories
+    (.venv/.sonar/etc.), that can dominate the scan. For changed-file mode we
+    copy only the explicit source files and coverage.xml into a temp project.
+    """
+    source_entries = _split_csv_paths(effective_sources)
+    if not source_entries:
+        return None, effective_sources, effective_inclusions, "coverage.xml"
+
+    source_paths = [Path(entry) for entry in source_entries]
+    if any(path.is_absolute() or not path.is_file() for path in source_paths):
+        return None, effective_sources, effective_inclusions, "coverage.xml"
+
+    project_dir = temp_dir / "project"
+    project_dir.mkdir(parents=True, exist_ok=True)
+    for source_path in source_paths:
+        target = project_dir / source_path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source_path, target)
+
+    coverage_src = Path("coverage.xml")
+    if coverage_src.is_file():
+        shutil.copy2(coverage_src, project_dir / "coverage.xml")
+
+    inclusion_entries = _split_csv_paths(effective_inclusions)
+    slim_inclusions = (
+        ",".join(inclusion_entries)
+        if inclusion_entries and all(not Path(entry).is_absolute() for entry in inclusion_entries)
+        else effective_inclusions
+    )
+    return project_dir, ",".join(source_entries), slim_inclusions, "coverage.xml"
+
+
 def _run_scan_for_gate(
     token: str,
     branch: str,
@@ -49,9 +98,6 @@ def _run_scan_for_gate(
     extra_args = [
         f"-Dsonar.python.version={sys.version_info.major}.{sys.version_info.minor}",
     ]
-    # Keep Sonar on the explicit report path so it does not fall back to the
-    # very slow default coverage-report search when the file is missing.
-    extra_args.append("-Dsonar.python.coverage.reportPaths=coverage.xml")
     temp_root = _sonar_temp_base_dir()
     temp_root.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(
@@ -59,13 +105,25 @@ def _run_scan_for_gate(
         dir=temp_root,
     ) as temp_dir_name:
         temp_dir = Path(temp_dir_name)
+        (
+            project_base_dir,
+            scan_sources,
+            scan_inclusions,
+            coverage_report_path,
+        ) = _copy_analysis_inputs(
+            temp_dir=temp_dir,
+            effective_sources=effective_sources,
+            effective_inclusions=effective_inclusions,
+        )
         scanner_working_directory = temp_dir / "workdir"
         scanner_working_directory.mkdir(parents=True, exist_ok=True)
         scanner_metadata_path = temp_dir / "report-task.txt"
+        extra_args.append(f"-Dsonar.python.coverage.reportPaths={coverage_report_path}")
         run_scan(
             token=token,
             branch=branch,
             reference_branch=reference_branch,
+            project_base_dir=project_base_dir,
             scanner_metadata_path=scanner_metadata_path,
             scanner_working_directory=scanner_working_directory,
             pull_request_key=pull_request_key,
@@ -73,14 +131,14 @@ def _run_scan_for_gate(
             pull_request_base=pull_request_base,
             host_url=effective_host_url,
             project_key=effective_project_key,
-            sources=effective_sources,
-            inclusions=effective_inclusions,
+            sources=scan_sources,
+            inclusions=scan_inclusions,
             extra_args=extra_args,
         )
         props = read_project_properties()
-        base_dir = Path.cwd()
+        base_dir = project_base_dir or Path.cwd()
         project_base = props.get("sonar.projectBaseDir")
-        if project_base:
+        if project_base and project_base_dir is None:
             base_dir = resolve_path(project_base, base_dir=base_dir)
         report_data, _ = discover_report_task(
             base_dir=base_dir,

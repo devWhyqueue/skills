@@ -235,3 +235,49 @@ def test_run_scan_for_gate_always_passes_explicit_coverage_path(
     assert captured["scanner_working_directory"] is not None
     assert captured["scanner_metadata_path"] is not None
     assert str(captured["scanner_working_directory"]).startswith(str(tmp_path))
+
+
+def test_run_scan_for_gate_uses_slim_project_workspace_for_file_sources(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    captured: dict[str, object] = {}
+    copied: dict[str, str] = {}
+    source_file = tmp_path / "src" / "pkg" / "module.py"
+    source_file.parent.mkdir(parents=True)
+    source_file.write_text("VALUE = 1\n", encoding="utf-8")
+    coverage_file = tmp_path / "coverage.xml"
+    coverage_file.write_text("<coverage />\n", encoding="utf-8")
+
+    def _fake_run_scan(**kwargs: Any) -> None:
+        captured.update(kwargs)
+        project_base_dir = kwargs["project_base_dir"]
+        assert isinstance(project_base_dir, Path)
+        copied["source"] = (project_base_dir / "src" / "pkg" / "module.py").read_text(
+            encoding="utf-8"
+        )
+        copied["coverage"] = (project_base_dir / "coverage.xml").read_text(
+            encoding="utf-8"
+        )
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(gate_check, "run_scan", _fake_run_scan)
+    monkeypatch.setattr(gate_check, "read_project_properties", lambda: {})
+    monkeypatch.setattr(gate_check, "discover_report_task", lambda **_: ({}, None))
+    monkeypatch.setenv("SONAR_TMPDIR", str(tmp_path / "sonar-tmp"))
+
+    gate_check._run_scan_for_gate(
+        "token",
+        "main",
+        "https://sonar.example",
+        "project-key",
+        "src/pkg/module.py",
+        "src/pkg/module.py",
+    )
+
+    project_base_dir = captured["project_base_dir"]
+    assert isinstance(project_base_dir, Path)
+    assert copied["source"] == "VALUE = 1\n"
+    assert copied["coverage"] == "<coverage />\n"
+    assert captured["sources"] == "src/pkg/module.py"
+    assert captured["inclusions"] == "src/pkg/module.py"

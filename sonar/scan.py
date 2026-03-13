@@ -96,6 +96,7 @@ def run_scan(
     token: str,
     branch: str,
     reference_branch: Optional[str] = None,
+    project_base_dir: Optional[Path] = None,
     scanner_metadata_path: Optional[Path] = None,
     scanner_working_directory: Optional[Path] = None,
     pull_request_key: Optional[str] = None,
@@ -144,6 +145,8 @@ def run_scan(
         cmd.extend(["--sonar-host-url", host_url])
     if project_key:
         cmd.extend(["--sonar-project-key", project_key])
+    if project_base_dir is not None:
+        cmd.extend(["--sonar-project-base-dir", str(project_base_dir)])
     if sources:
         cmd.extend(["--sonar-sources", sources])
     if inclusions and inclusions != sources and "sonar.inclusions" not in props:
