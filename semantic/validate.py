@@ -94,7 +94,7 @@ def _load_and_validate_index_ledger(
     meta_raw = raw.get("meta")
     meta: dict[str, Any] = meta_raw if isinstance(meta_raw, dict) else {}
     mode = str(meta.get("mode", "")).strip().lower()
-    sequential_mode = mode in {"single_file", "sequential"}
+    sequential_mode = mode in {"single_file", "sequential", "batched_sequential"}
     ledger_dir_raw = str(meta.get("ledger_dir", "")).strip()
     ledger_dir = (
         Path(ledger_dir_raw) if ledger_dir_raw else ledger_path.parent / "ledgers"

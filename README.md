@@ -8,7 +8,7 @@ It enforces:
 - vulture dead-code checks
 - pyright type checks
 - SonarQube Quality Gate (via pysonar), new-code scoped by default
-- Semantic gate scaffold produces an index (`semantic_prompt.md` + `semantic_ledger.yml`) plus per-file ledgers/prompts under `ledgers/` and `prompts/`. It generates only one per-file ledger/prompt per run, and the index prompt shows one file at a time; rerun the skill to advance. It gates on the evaluated per-file ledgers.
+- Semantic gate scaffold produces an index (`semantic_prompt.md` + `semantic_ledger.yml`) plus per-file ledgers/prompts under `ledgers/` and `prompts/`. It generates the next up to 5 pending per-file ledgers/prompts per run, and the index prompt shows that batch; rerun the skill to advance through the queue. It gates on the evaluated per-file ledgers.
 
 Setup notes:
 - Install the dependencies from this skill's `pyproject.toml` as dev deps in the calling project.

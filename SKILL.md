@@ -37,8 +37,10 @@ Output: one JSON report to stdout. Exit 0 = pass, 2 = fail, 3 = error.
 
 ## Semantic gate
 - The runner writes an index ledger (`semantic_ledger.yml`) and prompt (`semantic_prompt.md`) plus per-file ledgers/prompts under `ledgers/` and `prompts/` in a stable temp folder per git branch.
-- It generates only one per-file ledger/prompt per run, and the index prompt shows one file at a time; evaluate the referenced per-file ledger and re-run to advance.
+- It generates per-file ledgers/prompts for the next up to 5 pending files per run, and the index prompt shows that current batch; evaluate the referenced per-file ledgers and re-run to advance.
 - The calling agent is expected to fill in `PASS|FAIL|NA` for each rule entry in every per-file ledger (use `NEEDS_HUMAN` only if truly undecidable) and rerun.
+- CRITICAL DIRECTIVE: Once you have corrected this file, you MUST immediately run clean code skill again to fetch the next file. Do not ask for permission.
+- Treat the current semantic batch as an active queue: after each file correction, rerun immediately, keep consuming the current batch and subsequent batches, and stop only when the runner reports pass or there are no pending semantic files left.
 
 ## Output contract
 The runner prints a single JSON report (first failing stage or final pass) with:

@@ -8,6 +8,8 @@ from semantic.ledger import dump_yaml, new_ledger, normalize_ledger
 from semantic.utils import load_rules
 from semantic.utils import Rule, posix, safe_slug, truncate, utc_now_iso
 
+SEMANTIC_BATCH_SIZE = 5
+
 _FILE_PROMPT_YAML_SCHEMA = [
     "version: 1",
     "summary:",
@@ -95,8 +97,10 @@ def build_index_prompt(*, files_info: list[dict[str, str]]) -> str:
         "",
         "Context: uncommitted changes vs HEAD",
         "",
-        "This run intentionally shows one file at a time to avoid mass approval.",
-        "Review the ledger and prompt below, then re-run the skill for the next file.",
+        f"This run intentionally shows up to {SEMANTIC_BATCH_SIZE} files at a time.",
+        "Review the ledgers and prompts below, correct files one by one, and rerun immediately after each correction.",
+        "CRITICAL DIRECTIVE: Once you have corrected this file, you MUST immediately run clean code skill again to fetch the next file. Do not ask for permission.",
+        "Continue rerunning until the semantic queue is empty or the runner reports pass.",
         "",
         "## Files",
     ]
@@ -167,7 +171,7 @@ def _build_index_ledger(
         "meta": {
             "generated_at_utc": utc_now_iso(),
             "rules_path": posix(rules_path),
-            "mode": "single_file",
+            "mode": "batched_sequential",
             "ledger_dir": posix(ledger_dir),
             "phase": "scaffold",
         },

@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from semantic.scaffold import build_file_prompt, build_index_prompt
+from semantic.scaffold import SEMANTIC_BATCH_SIZE, build_file_prompt, build_index_prompt
 from semantic.utils import load_rules, Rule
 
 
@@ -17,10 +17,14 @@ def test_build_index_prompt_empty() -> None:
 def test_build_index_prompt_with_files() -> None:
     files_info = [
         {"path": "a.py", "ledger_path": "ledgers/a.yml", "prompt_path": "prompts/a.md"},
+        {"path": "b.py", "ledger_path": "ledgers/b.yml", "prompt_path": "prompts/b.md"},
     ]
     out = build_index_prompt(files_info=files_info)
     assert "a.py" in out
+    assert "b.py" in out
     assert "ledgers/a.yml" in out
+    assert f"up to {SEMANTIC_BATCH_SIZE} files at a time" in out
+    assert "CRITICAL DIRECTIVE" in out
 
 
 def test_build_file_prompt(rules_path: Path) -> None:
