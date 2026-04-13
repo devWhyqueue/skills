@@ -81,7 +81,7 @@ def _build_pytest_cmd(
     Coverage is restricted to changed .py files (one --cov module per file).
     When coverage_fail_under is 0, coverage is reported but no threshold is enforced.
     """
-    cmd: List[str] = [*tool_cmd("pytest"), "-q", "--tb=short"]
+    cmd: List[str] = [*tool_cmd("pytest"), "-q", "--tb=short", "--capture=no"]
     coverage_report_path: Optional[str] = None
     cov_modules = _cov_modules_from_changed_files(changed_files)
     if cov_modules:
