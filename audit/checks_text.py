@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from pathlib import Path
 
 
 def detect_broad_except(source: str) -> list[tuple[int, str]]:
@@ -77,6 +78,15 @@ def _file_level_violation_tuples(
                 "structure.no_mixed_spark_styles",
                 None,
                 "File appears to mix Spark SQL (spark.sql) and PySpark DataFrame API.",
+                None,
+            )
+        )
+    if Path(path_str).name == "__init__.py" and source.strip():
+        out.append(
+            (
+                "structure.empty_init_only",
+                None,
+                "__init__.py must be empty (whitespace only).",
                 None,
             )
         )

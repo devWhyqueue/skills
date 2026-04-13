@@ -44,7 +44,7 @@ rules:
     statement: "No commented-out code blocks are allowed."
     enforcement: AUTO
   - id: CC-14
-    statement: "Rewrite identifiers, docstrings, comments, module and package names to clear English. Rewrite user-facing strings (e.g. Airflow Task IDs) to clear German."
+    statement: "Rewrite identifiers, docstrings, comments, module and package names to clear English. Rewrite user-facing strings (e.g. Airflow Task IDs or logging messages) to clear German."
     enforcement: SEMANTIC
   - id: CC-15
     statement: "Rename vague or abbreviated identifiers, modules, and packages (e.g. util, helper, core) to meaningful domain names; keep naming consistent with role and type."
@@ -58,3 +58,6 @@ rules:
   - id: CC-18
     statement: "Resolve all IDE warnings."
     enforcement: MANUAL
+  - id: CC-19
+    statement: "`__init__.py` files must be empty (whitespace only)."
+    enforcement: AUTO
