@@ -78,6 +78,18 @@ def _is_typeddict_base(node: ast.expr) -> bool:
     return False
 
 
+def _is_typeddict_like_class(node: ast.ClassDef) -> bool:
+    if any(_is_typeddict_base(base) for base in node.bases):
+        return True
+
+    body = [stmt for stmt in node.body if not isinstance(stmt, ast.Expr)]
+    if not body:
+        return False
+    if not all(isinstance(stmt, (ast.AnnAssign, ast.Pass)) for stmt in body):
+        return False
+    return any(isinstance(stmt, ast.AnnAssign) for stmt in body)
+
+
 def _typed_dict_field_lines(file_path: str) -> Set[int]:
     path = Path(file_path)
     if not path.exists():
@@ -92,7 +104,7 @@ def _typed_dict_field_lines(file_path: str) -> Set[int]:
     for node in ast.walk(tree):
         if not isinstance(node, ast.ClassDef):
             continue
-        if not any(_is_typeddict_base(base) for base in node.bases):
+        if not _is_typeddict_like_class(node):
             continue
         for stmt in node.body:
             if isinstance(stmt, ast.AnnAssign) and isinstance(stmt.target, ast.Name):
