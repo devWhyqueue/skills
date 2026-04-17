@@ -1,4 +1,7 @@
-.system
-frontend-design/
-jupyter-notebook/
-playwright/
+/*
+!/.gitignore
+!/README.md
+!/clean-code/
+!/clean-code/**
+!/pdf/
+!/pdf/**
