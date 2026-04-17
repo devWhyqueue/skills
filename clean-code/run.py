@@ -20,10 +20,10 @@ from cli.runner import run as run_skill
     help="Optional package to target (name or path). Default: all changed Python files.",
 )
 @click.option(
-    "--minimal",
+    "--full",
     is_flag=True,
     default=False,
-    help="Run only audit + pyright + vulture + pytest; skip sonar and semantic gates.",
+    help="Run audit + pyright + vulture + pytest + sonar + semantic gates.",
 )
 @click.option(
     "--min-coverage",

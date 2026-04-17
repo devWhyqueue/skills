@@ -19,11 +19,11 @@ Setup notes:
 ## Run
 From the calling project’s venv:
 
-Audit + fix + gates (default):
+Default minimal run (audit + pyright + vulture + pytest):
 `uv run python "$env:USERPROFILE\.codex\skills\clean-code\run.py"`
 
-Minimal run (audit + pyright + vulture + pytest; no Sonar/Semantic):
-`uv run python "$env:USERPROFILE\.codex\skills\clean-code\run.py" --minimal`
+Full run (minimal + Sonar + Semantic):
+`uv run python "$env:USERPROFILE\.codex\skills\clean-code\run.py" --full`
 
 Restrict to a package (name or path):
 `uv run python "$env:USERPROFILE\.codex\skills\clean-code\run.py" --scope etl`

@@ -271,8 +271,8 @@ def run(args: SimpleNamespace) -> int:
         args.vulture = True
         args.pyright = True
         args.pytest = True
-        args.sonar = not getattr(args, "minimal", False)
-        args.semantic = not getattr(args, "minimal", False)
+        args.sonar = bool(getattr(args, "full", False))
+        args.semantic = bool(getattr(args, "full", False))
         resume_semantic = _semantic_resume_available(args)
         if args.semantic and not resume_semantic:
             reset_semantic_out_dir()
