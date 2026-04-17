@@ -10,7 +10,6 @@ import pytest
 
 from audit.fix import (
     FixResult,
-    detect_newline,
     ensure_logger_scaffold,
     fix_files,
     replace_print_with_logger,
@@ -71,10 +70,6 @@ def test_replace_print_with_logger_comment_unchanged() -> None:
     assert out.strip() == '# print("x")'
 
 
-def test_detect_newline_prefers_crlf() -> None:
-    assert detect_newline("a\r\nb\r\n") == "\r\n"
-
-
 def test_fix_files_nonexistent() -> None:
     results = fix_files(["/nonexistent/file.py"])
     assert results == []
@@ -97,8 +92,8 @@ def test_fix_files_print_replaced(tmp_path: Path) -> None:
     assert "logger.info" in p.read_text()
 
 
-def test_ruff_called_only_on_fix_modified_files(tmp_path: Path) -> None:
-    """ruff_fix_and_format receives only files the fixer actually rewrote."""
+def test_ruff_called_on_all_changed_set_files(tmp_path: Path) -> None:
+    """ruff_fix_and_format receives every file in the changed set, not just fix-modified ones."""
     changed = tmp_path / "changed.py"
     unchanged = tmp_path / "unchanged.py"
     changed.write_text('"""M."""\nprint("hi")\n', newline="\n")
@@ -117,19 +112,7 @@ def test_ruff_called_only_on_fix_modified_files(tmp_path: Path) -> None:
     assert results[1].changed is False
 
     assert len(ruff_received) == 1
-    assert ruff_received[0] == [str(changed)]
-
-
-def test_fix_files_preserves_existing_crlf_line_endings(tmp_path: Path) -> None:
-    p = tmp_path / "windows.py"
-    p.write_text('"""X."""\r\nprint("hi")\r\n', encoding="utf-8", newline="\r\n")
-
-    with patch("audit.fix.has_ruff", return_value=False):
-        fix_files([str(p)])
-
-    content = p.read_bytes()
-    assert b"\r\n" in content
-    assert b"\n" not in content.replace(b"\r\n", b"")
+    assert ruff_received[0] == [str(changed), str(unchanged)]
 
 
 def test_fix_result_dataclass() -> None:

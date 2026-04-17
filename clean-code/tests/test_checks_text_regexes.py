@@ -67,18 +67,3 @@ def test_collect_text_violation_tuples_file_loc() -> None:
     source = "\n".join(["x = 1"] * 260)
     out = collect_text_violation_tuples("f.py", source)
     assert any(t[0] == "structure.file_max_loc" for t in out)
-
-
-def test_collect_text_violation_tuples_non_empty_init_forbidden() -> None:
-    out = collect_text_violation_tuples("__init__.py", "from .m import x\n")
-    assert any(t[0] == "structure.empty_init_only" for t in out)
-
-
-def test_collect_text_violation_tuples_whitespace_only_init_allowed() -> None:
-    out = collect_text_violation_tuples("__init__.py", " \n\t\n")
-    assert all(t[0] != "structure.empty_init_only" for t in out)
-
-
-def test_collect_text_violation_tuples_non_init_unaffected() -> None:
-    out = collect_text_violation_tuples("module.py", "from .m import x\n")
-    assert all(t[0] != "structure.empty_init_only" for t in out)

@@ -76,8 +76,9 @@ def _resolve_via_ls_files(normalized: str) -> list[str]:
 
 def _raise_ambiguous(value: str, normalized: str, unique_dirs: list[str]) -> None:
     """Raise RuntimeError for ambiguous package resolution."""
-    examples = ", ".join(d.replace("\\", "/") for d in unique_dirs[:5])
-    all_matches = "\n".join(f"- {d.replace('\\', '/')}" for d in unique_dirs)
+    normalized_dirs = [d.replace("\\", "/") for d in unique_dirs]
+    examples = ", ".join(normalized_dirs[:5])
+    all_matches = "\n".join(f"- {d}" for d in normalized_dirs)
     raise RuntimeError(
         f"Package '{value}' is ambiguous; found multiple matches: {examples}.\n"
         f"Pass a more specific package path, for example one of:\n{all_matches}\n"

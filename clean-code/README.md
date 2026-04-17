@@ -2,6 +2,8 @@
 
 Script-backed skill to audit and clean up uncommitted and untracked Python files. Scope is uncommitted/untracked *.py only.
 
+This skill is tracked in the standalone `skills` repo under `clean-code/`.
+
 It enforces:
 - your custom Clean Code Rules (see clean_code_rules.yml)
 - ruff autofix + formatting

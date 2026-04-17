@@ -24,6 +24,15 @@ def test_cov_modules_from_changed_files_dedupe() -> None:
     ) == ["etl.bar", "etl.foo", "report.baz"]
 
 
+def test_cov_modules_from_changed_files_nested_src_root() -> None:
+    assert pytest_gate._cov_modules_from_changed_files(
+        [
+            ".agents/skill/bib/src/bib/models.py",
+            ".agents/skill/bib/src/bib/metadata/cache.py",
+        ]
+    ) == ["bib.metadata.cache", "bib.models"]
+
+
 def test_cov_modules_from_changed_files_skips_non_py() -> None:
     assert pytest_gate._cov_modules_from_changed_files(["cli/runner.py", "readme.md"]) == [
         "cli.runner",
@@ -164,7 +173,6 @@ def test_build_pytest_cmd_no_changed_files(monkeypatch: pytest.MonkeyPatch) -> N
     monkeypatch.setattr(pytest_gate, "tool_cmd", _fake_tool_cmd)
     cmd, path = pytest_gate._build_pytest_cmd([], 90)
     assert "pytest" in cmd
-    assert "--capture=no" in cmd
     assert "--cov" not in cmd
     assert path is None
 
@@ -175,7 +183,6 @@ def test_build_pytest_cmd_with_changed_files(monkeypatch: pytest.MonkeyPatch) ->
 
     monkeypatch.setattr(pytest_gate, "tool_cmd", _fake_tool_cmd)
     cmd, path = pytest_gate._build_pytest_cmd(["src/a/foo.py", "src/b/bar.py"], 90)
-    assert "--capture=no" in cmd
     assert "--cov" in cmd
     # Coverage restricted to changed files (module names)
     assert "a.foo" in cmd

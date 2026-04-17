@@ -41,13 +41,7 @@ def _package_root_for_file(path: Path) -> Path | None:
 
 
 def _count_python_files_in_package(pkg_dir: Path) -> int:
-    count = 0
-    for entry in pkg_dir.iterdir():
-        if entry.is_file() and entry.suffix == ".py":
-            count += 1
-        elif entry.is_dir() and (entry / "__init__.py").is_file():
-            count += 1
-    return count
+    return sum(1 for p in pkg_dir.iterdir() if p.is_file() and p.suffix == ".py")
 
 
 def _collect_text_violations(path_str: str, source: str) -> list[Violation]:

@@ -25,8 +25,8 @@ def _coverage_module_from_path(path: str) -> Optional[str]:
         return None
 
     module_parts = list(path_obj.with_suffix("").parts)
-    if module_parts and module_parts[0] == "src":
-        module_parts = module_parts[1:]
+    if "src" in module_parts:
+        module_parts = module_parts[module_parts.index("src") + 1 :]
     if not module_parts:
         return None
     return ".".join(module_parts)
@@ -81,7 +81,7 @@ def _build_pytest_cmd(
     Coverage is restricted to changed .py files (one --cov module per file).
     When coverage_fail_under is 0, coverage is reported but no threshold is enforced.
     """
-    cmd: List[str] = [*tool_cmd("pytest"), "-q", "--tb=short", "--capture=no"]
+    cmd: List[str] = [*tool_cmd("pytest"), "-q", "--tb=short"]
     coverage_report_path: Optional[str] = None
     cov_modules = _cov_modules_from_changed_files(changed_files)
     if cov_modules:

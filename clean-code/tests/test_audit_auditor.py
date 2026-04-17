@@ -90,23 +90,3 @@ def test_violation_dataclass() -> None:
     assert v.line == 1
     assert v.message == "m"
     assert v.evidence == "e"
-
-
-def test_package_file_limit_counts_direct_subpackages(tmp_path: Path) -> None:
-    pkg = tmp_path / "pkg"
-    subpkg = pkg / "nested"
-    nested_subpkg = subpkg / "deep"
-    subpkg.mkdir(parents=True)
-    nested_subpkg.mkdir(parents=True)
-    (pkg / "__init__.py").write_text("")
-    (subpkg / "__init__.py").write_text("")
-    (nested_subpkg / "__init__.py").write_text("")
-
-    for idx in range(6):
-        (pkg / f"root_{idx}.py").write_text('"""Root file."""\n')
-    (subpkg / "sub_module.py").write_text('"""Subpackage file."""\n')
-    (nested_subpkg / "deep_module.py").write_text('"""Nested subpackage file."""\n')
-
-    target = pkg / "root_0.py"
-    violations = audit_file(target)
-    assert any(v.rule_id == "structure.max_files_per_package" for v in violations)

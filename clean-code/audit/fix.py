@@ -40,17 +40,6 @@ def has_ruff() -> bool:
     return code == 0
 
 
-def detect_newline(text: str) -> str | None:
-    """Return the dominant newline sequence in text, if any."""
-    if "\r\n" in text:
-        return "\r\n"
-    if "\n" in text:
-        return "\n"
-    if "\r" in text:
-        return "\r"
-    return None
-
-
 def ensure_logger_scaffold(source: str) -> str:
     """
     If the file contains print(), we try a safe transformation:
@@ -139,15 +128,13 @@ def ruff_fix_and_format(files: List[str]) -> None:
 
 def fix_files(files: List[str]) -> List[FixResult]:
     results: List[FixResult] = []
-    changed_files: List[str] = []
 
     for f in files:
         path = Path(f)
         if not path.exists():
             continue
 
-        before = path.read_bytes().decode("utf-8", errors="replace")
-        newline = detect_newline(before)
+        before = path.read_text(encoding="utf-8", errors="replace")
 
         after = ensure_logger_scaffold(before)
         after2 = replace_print_with_logger(after)
@@ -160,11 +147,10 @@ def fix_files(files: List[str]) -> List[FixResult]:
             actions.append("replace_print_with_logger")
 
         if changed:
-            path.write_text(after2, encoding="utf-8", newline=newline)
-            changed_files.append(f)
+            path.write_text(after2, encoding="utf-8")
 
         results.append(FixResult(file=f, changed=changed, actions=actions))
 
-    ruff_fix_and_format(changed_files)
+    ruff_fix_and_format([r.file for r in results])
 
     return results

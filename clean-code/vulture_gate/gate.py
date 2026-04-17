@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import ast
 import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
@@ -66,72 +65,6 @@ def _filter_issues_to_changed(
             continue
         result.append(i)
     return result
-
-
-def _is_typeddict_base(node: ast.expr) -> bool:
-    if isinstance(node, ast.Name):
-        return node.id == "TypedDict"
-    if isinstance(node, ast.Attribute):
-        return node.attr == "TypedDict"
-    if isinstance(node, ast.Subscript):
-        return _is_typeddict_base(node.value)
-    return False
-
-
-def _is_typeddict_like_class(node: ast.ClassDef) -> bool:
-    if any(_is_typeddict_base(base) for base in node.bases):
-        return True
-
-    body = [stmt for stmt in node.body if not isinstance(stmt, ast.Expr)]
-    if not body:
-        return False
-    if not all(isinstance(stmt, (ast.AnnAssign, ast.Pass)) for stmt in body):
-        return False
-    return any(isinstance(stmt, ast.AnnAssign) for stmt in body)
-
-
-def _typed_dict_field_lines(file_path: str) -> Set[int]:
-    path = Path(file_path)
-    if not path.exists():
-        return set()
-    try:
-        source = path.read_text(encoding="utf-8")
-        tree = ast.parse(source, filename=file_path)
-    except (OSError, SyntaxError, UnicodeDecodeError):
-        return set()
-
-    field_lines: Set[int] = set()
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.ClassDef):
-            continue
-        if not _is_typeddict_like_class(node):
-            continue
-        for stmt in node.body:
-            if isinstance(stmt, ast.AnnAssign) and isinstance(stmt.target, ast.Name):
-                field_lines.add(stmt.lineno)
-    return field_lines
-
-
-def _filter_typeddict_field_false_positives(
-    issues: List[Dict[str, Any]],
-) -> List[Dict[str, Any]]:
-    file_field_lines: Dict[str, Set[int]] = {}
-    filtered: List[Dict[str, Any]] = []
-    for issue in issues:
-        if issue.get("type") != "variable":
-            filtered.append(issue)
-            continue
-        line_number = issue.get("line")
-        if not isinstance(line_number, int):
-            filtered.append(issue)
-            continue
-        file_path = str(issue["file"])
-        if file_path not in file_field_lines:
-            file_field_lines[file_path] = _typed_dict_field_lines(file_path)
-        if line_number in file_field_lines[file_path]:
-            continue
-        filtered.append(issue)
-    return filtered
 
 
 def _parse_vulture_issue_line(line: str) -> Optional[Dict[str, Any]]:
@@ -201,7 +134,6 @@ def run_vulture_gate(
     cmd = _build_vulture_cmd(_default_scan_paths())
     code, output, _ = run(cmd)
     all_issues = _parse_vulture_output(output)
-    all_issues = _filter_typeddict_field_false_positives(all_issues)
     issues = _filter_issues_to_changed(all_issues, changed_files, package_dir)
     report = {"tool": "vulture", "exit_code": code, "issues": issues}
     if code in (1, 2):

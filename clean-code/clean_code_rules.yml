@@ -58,6 +58,3 @@ rules:
   - id: CC-18
     statement: "Resolve all IDE warnings."
     enforcement: MANUAL
-  - id: CC-19
-    statement: "`__init__.py` files must be empty (whitespace only)."
-    enforcement: AUTO

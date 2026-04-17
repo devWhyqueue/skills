@@ -36,25 +36,6 @@ def test_build_vulture_cmd_excludes_test_dirs(monkeypatch: pytest.MonkeyPatch) -
         assert "*/tests/*" in patterns
 
 
-def test_typed_dict_field_lines_include_annotation_only_subclasses(
-    tmp_path: Path,
-) -> None:
-    """Classes that only declare annotated fields should be treated as TypedDict-like."""
-    file_path = tmp_path / "typed_dict_like.py"
-    file_path.write_text(
-        "from typing import TypedDict\n"
-        "class Base(TypedDict):\n"
-        "    source_table: str\n"
-        "class Child(Base):\n"
-        "    target_table: str\n",
-        encoding="utf-8",
-    )
-
-    from vulture_gate.gate import _typed_dict_field_lines
-
-    assert _typed_dict_field_lines(str(file_path)) == {3, 5}
-
-
 def _fake_run_success(cmd: List[str]) -> Tuple[int, str, str]:
     return 0, "", ""
 
@@ -174,3 +155,4 @@ def test_run_vulture_gate_issue_in_changed_but_outside_scope_filtered_out(
     assert failed is False
     assert report is not None
     assert report["issues"] == []
+
