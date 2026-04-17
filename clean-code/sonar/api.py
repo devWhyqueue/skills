@@ -42,7 +42,7 @@ def _poll_ce_task_step(
     timeout: int,
     interval: int,
     *,
-    attempt: int,
+    attempt: int = 0,
 ) -> tuple[bool, Dict[str, Any]]:
     """Poll once; return (True, task) if done, (False, {}) if need to retry."""
     payload = _http_get_json(_append_cache_buster(ce_task_url), token)

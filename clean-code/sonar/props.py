@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 import shutil
 from pathlib import Path
 from typing import Dict, Optional, Tuple
@@ -27,6 +28,16 @@ def read_report_task(report_task_path: Path) -> Dict[str, str]:
     return data
 
 
+_WINDOWS_ENV_PATTERN = re.compile(r"%([^%]+)%")
+
+
+def _expand_windows_env_vars(value: str) -> str:
+    return _WINDOWS_ENV_PATTERN.sub(
+        lambda match: os.environ.get(match.group(1), match.group(0)),
+        value,
+    )
+
+
 def resolve_path(value: str, *, base_dir: Path) -> Path:
     """
     Resolve a Sonar path-like property value to a concrete Path.
@@ -34,7 +45,8 @@ def resolve_path(value: str, *, base_dir: Path) -> Path:
     Sonar properties may contain environment variables (e.g. %TEMP% / $TMP),
     tildes, and relative paths (typically relative to sonar.projectBaseDir).
     """
-    expanded = os.path.expandvars((value or "").strip())
+    expanded = _expand_windows_env_vars((value or "").strip())
+    expanded = os.path.expandvars(expanded)
     expanded = os.path.expanduser(expanded)
     p = Path(expanded)
     if p.is_absolute():
