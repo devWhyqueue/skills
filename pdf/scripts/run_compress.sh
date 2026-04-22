@@ -2,27 +2,20 @@
 set -euo pipefail
 
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
-REPO_ROOT=$(cd -- "${SCRIPT_DIR}/../../.." && pwd)
+COMPRESS_SCRIPT="${SCRIPT_DIR}/compress_pdfs.py"
 
-if command -v uv >/dev/null 2>&1; then
-  UV_BIN=$(command -v uv)
-elif [[ -x /home/yannik/.local/bin/uv ]]; then
-  UV_BIN=/home/yannik/.local/bin/uv
-else
-  echo "uv is required but was not found." >&2
+if [[ ! -f "${COMPRESS_SCRIPT}" ]]; then
+  echo "compress_pdfs.py was not found next to run_compress.sh" >&2
   exit 1
 fi
 
-VENV_PYTHON="${REPO_ROOT}/.venv/bin/python"
-
-if [[ ! -x "${VENV_PYTHON}" ]]; then
-  "${UV_BIN}" venv "${REPO_ROOT}/.venv"
+if command -v uv >/dev/null 2>&1; then
+  exec uv run --with pikepdf --with pillow python "${COMPRESS_SCRIPT}" "$@"
 fi
 
-"${UV_BIN}" sync \
-  --project "${REPO_ROOT}" \
-  --locked \
-  --no-install-project \
-  --python "${VENV_PYTHON}"
+if command -v python3 >/dev/null 2>&1; then
+  exec python3 "${COMPRESS_SCRIPT}" "$@"
+fi
 
-exec "${VENV_PYTHON}" "${REPO_ROOT}/.skills/pdf/scripts/compress_pdfs.py" "$@"
+echo "Either uv or python3 is required but was not found." >&2
+exit 1
