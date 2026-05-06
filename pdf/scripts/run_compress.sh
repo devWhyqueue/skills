@@ -2,11 +2,17 @@
 set -euo pipefail
 
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+SKILL_DIR=$(cd -- "${SCRIPT_DIR}/.." && pwd)
 COMPRESS_SCRIPT="${SCRIPT_DIR}/compress_pdfs.py"
+VENV_PYTHON="${SKILL_DIR}/.venv/bin/python"
 
 if [[ ! -f "${COMPRESS_SCRIPT}" ]]; then
   echo "compress_pdfs.py was not found next to run_compress.sh" >&2
   exit 1
+fi
+
+if [[ -x "${VENV_PYTHON}" ]]; then
+  exec "${VENV_PYTHON}" "${COMPRESS_SCRIPT}" "$@"
 fi
 
 if command -v uv >/dev/null 2>&1; then

@@ -10,6 +10,32 @@ license: Proprietary. LICENSE.txt has complete terms
 
 This guide covers essential PDF processing operations using Python libraries and command-line tools. For advanced features, JavaScript libraries, and detailed examples, see REFERENCE.md. If you need to fill out a PDF form, read FORMS.md and follow its instructions.
 
+## Python Environment
+
+Use the skill-local virtual environment for all Python PDF work:
+
+```bash
+/mnt/c/Users/yanni/.codex/skills/pdf/.venv/bin/python
+```
+
+The dependencies are listed in `requirements.txt` and installed into that
+environment. Do not assume the ambient `python` or `python3` has the required
+PDF libraries. For one-off snippets, run:
+
+```bash
+/mnt/c/Users/yanni/.codex/skills/pdf/.venv/bin/python - <<'PY'
+from pypdf import PdfReader
+print(PdfReader("document.pdf").pages)
+PY
+```
+
+To recreate the environment if it is missing:
+
+```bash
+python3 -m venv /mnt/c/Users/yanni/.codex/skills/pdf/.venv
+/mnt/c/Users/yanni/.codex/skills/pdf/.venv/bin/python -m pip install -r /mnt/c/Users/yanni/.codex/skills/pdf/requirements.txt
+```
+
 ## Compression
 
 Use the bundled compressor when the user asks to compress, shrink, optimize, or reduce PDF sizes, including recursive cleanup across folders.

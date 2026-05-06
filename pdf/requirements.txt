@@ -1,0 +1,11 @@
+pypdf
+pdfplumber
+pandas
+openpyxl
+reportlab
+pytesseract
+pdf2image
+pypdfium2
+pillow
+numpy
+pikepdf
