@@ -39,6 +39,35 @@ def _build_vulture_cmd(scan_paths: List[str]) -> List[str]:
     return cmd
 
 
+def _parse_vulture_scope(vulture_scope: str) -> List[str]:
+    """Parse comma-separated Vulture scan paths."""
+    if not vulture_scope.strip():
+        return []
+    return [part.strip() for part in vulture_scope.split(",") if part.strip()]
+
+
+def _ensure_scope_coverage(scan_paths: List[str], package_dir: Optional[Path]) -> List[str]:
+    """Ensure scan roots are not narrower than package scope."""
+    if package_dir is None:
+        return scan_paths
+    package_scope = _normalize_path(package_dir.as_posix())
+    for scan_path in scan_paths:
+        normalized_scan = _normalize_path(scan_path)
+        if normalized_scan == ".":
+            return scan_paths
+        if package_scope == normalized_scan or package_scope.startswith(normalized_scan + "/"):
+            return scan_paths
+    return [*scan_paths, package_scope]
+
+
+def _resolve_scan_paths(vulture_scope: str, package_dir: Optional[Path]) -> List[str]:
+    """Resolve final Vulture scan roots from user override + defaults."""
+    requested = _parse_vulture_scope(vulture_scope)
+    if requested:
+        return _ensure_scope_coverage(requested, package_dir)
+    return _default_scan_paths()
+
+
 def _normalize_path(path: str) -> str:
     return Path(path).as_posix()
 
@@ -110,6 +139,7 @@ def run_vulture_gate(
     enabled: bool,
     changed_files: List[str],
     package_dir: Optional[Path] = None,
+    vulture_scope: str = "",
 ) -> Tuple[Optional[Dict[str, Any]], Optional[str], bool]:
     """Run Vulture on the full project (default src/), then report only issues in changed files (and scope).
 
@@ -131,11 +161,17 @@ def run_vulture_gate(
     if not changed_files:
         report: Dict[str, Any] = {"tool": "vulture", "exit_code": 0, "issues": []}
         return report, None, False
-    cmd = _build_vulture_cmd(_default_scan_paths())
+    scan_paths = _resolve_scan_paths(vulture_scope, package_dir)
+    cmd = _build_vulture_cmd(scan_paths)
     code, output, _ = run(cmd)
     all_issues = _parse_vulture_output(output)
     issues = _filter_issues_to_changed(all_issues, changed_files, package_dir)
-    report = {"tool": "vulture", "exit_code": code, "issues": issues}
+    report = {
+        "tool": "vulture",
+        "exit_code": code,
+        "issues": issues,
+        "scan_paths": scan_paths,
+    }
     if code in (1, 2):
         return report, "Vulture failed (invalid input or arguments).", True
     if issues:

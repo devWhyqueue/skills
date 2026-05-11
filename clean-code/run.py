@@ -31,6 +31,15 @@ from cli.runner import run as run_skill
     default=None,
     help="Require this minimum coverage %% for pytest to pass (default: report only, no threshold).",
 )
+@click.option(
+    "--vulture-scope",
+    default="",
+    show_default=False,
+    help=(
+        "Optional comma-separated paths for Vulture scan roots. "
+        "When set, Vulture scans these paths instead of the default root/src."
+    ),
+)
 def main(**kwargs: object) -> None:
     """Entry point: load env, run skill, exit with its return code."""
     logging.basicConfig(level=logging.INFO, format="%(message)s", stream=sys.stdout)

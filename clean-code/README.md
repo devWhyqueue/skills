@@ -28,4 +28,7 @@ Full run (minimal + Sonar + Semantic):
 Restrict to a package (name or path):
 `uv run python "$env:USERPROFILE\.codex\skills\clean-code\run.py" --scope etl`
 
+Override Vulture scan roots (comma-separated) while still filtering findings to changed/scope files:
+`uv run python "$env:USERPROFILE\.codex\skills\clean-code\run.py" --scope experiments --vulture-scope experiments/class_imbalance_tcga_ut/scripts`
+
 Tip: if you pipe JSON output to a file, write it to a temp location (e.g. `Tee-Object -FilePath $env:TEMP\\clean-code.json`) to avoid creating untracked files in your repo.

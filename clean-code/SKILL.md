@@ -33,6 +33,8 @@ From the calling project root:
   `uv run python "$env:USERPROFILE\.codex\skills\clean-code\run.py" --min-coverage 90`
 - Restrict to a package:  
   `uv run python "$env:USERPROFILE\.codex\skills\clean-code\run.py" --scope etl`
+- Override Vulture scan roots (comma-separated paths):  
+  `uv run python "$env:USERPROFILE\.codex\skills\clean-code\run.py" --scope experiments --vulture-scope experiments/class_imbalance_tcga_ut/scripts`
 
 Output: one JSON report to stdout. Exit 0 = pass, 2 = fail, 3 = error.
 

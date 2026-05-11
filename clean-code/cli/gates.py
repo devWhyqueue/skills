@@ -50,7 +50,10 @@ def _run_vulture_pyright_pytest(
     if args.vulture:
         vulture_report, s, failed = _timed_gate_result(
             run_vulture_gate,
-            enabled=True, changed_files=files, package_dir=package_dir
+            enabled=True,
+            changed_files=files,
+            package_dir=package_dir,
+            vulture_scope=str(getattr(args, "vulture_scope", "") or "").strip(),
         )
         if failed and status == "pass":
             status, summary = "fail", s or summary
