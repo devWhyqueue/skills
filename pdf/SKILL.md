@@ -15,7 +15,8 @@ This guide covers essential PDF processing operations using Python libraries and
 Use the skill-local virtual environment for all Python PDF work:
 
 ```bash
-/mnt/c/Users/yanni/.codex/skills/pdf/.venv/bin/python
+PDF_SKILL_DIR="/path/to/codex/skills/pdf"
+"$PDF_SKILL_DIR/.venv/bin/python"
 ```
 
 The dependencies are listed in `requirements.txt` and installed into that
@@ -23,7 +24,8 @@ environment. Do not assume the ambient `python` or `python3` has the required
 PDF libraries. For one-off snippets, run:
 
 ```bash
-/mnt/c/Users/yanni/.codex/skills/pdf/.venv/bin/python - <<'PY'
+PDF_SKILL_DIR="/path/to/codex/skills/pdf"
+"$PDF_SKILL_DIR/.venv/bin/python" - <<'PY'
 from pypdf import PdfReader
 print(PdfReader("document.pdf").pages)
 PY
@@ -32,8 +34,9 @@ PY
 To recreate the environment if it is missing:
 
 ```bash
-python3 -m venv /mnt/c/Users/yanni/.codex/skills/pdf/.venv
-/mnt/c/Users/yanni/.codex/skills/pdf/.venv/bin/python -m pip install -r /mnt/c/Users/yanni/.codex/skills/pdf/requirements.txt
+PDF_SKILL_DIR="/path/to/codex/skills/pdf"
+python3 -m venv "$PDF_SKILL_DIR/.venv"
+"$PDF_SKILL_DIR/.venv/bin/python" -m pip install -r "$PDF_SKILL_DIR/requirements.txt"
 ```
 
 ## Compression
