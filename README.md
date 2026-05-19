@@ -6,12 +6,15 @@ User-defined Codex skills tracked in `git@github.com:devWhyqueue/skills.git`.
 
 - `/mnt/c/Users/Yannik/.codex/skills` is the canonical working tree.
 - `/home/yannik/.codex/skills` is a symlink to the Windows path so WSL and Windows use the same files.
-- Only `clean-code`, `pdf`, and `review` are version-controlled here. Other top-level skill directories may exist locally for runtime use but are ignored by git.
+- Only `clean-code`, `doc-coauthoring`, `frontend-design`, `pdf`, `playwright`, and `review` are version-controlled here. Other top-level skill directories may exist locally for runtime use but are ignored by git.
 
 ## Skills
 
 - `clean-code`: Python clean-code audit and gating pipeline.
+- `doc-coauthoring`: Structured workflow for co-authoring documentation and specs.
+- `frontend-design`: Production-grade frontend UI design with distinctive aesthetics.
 - `pdf`: PDF processing guidance and helper scripts.
+- `playwright`: Browser automation from the terminal via `playwright-cli`.
 - `review`: Multi-axis code review guidance.
 
 ## Workflow
