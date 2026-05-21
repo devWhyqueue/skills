@@ -28,13 +28,14 @@ def _build_vulture_cmd(scan_paths: List[str]) -> List[str]:
     config = Path("pyproject.toml")
     if config.exists():
         cmd.extend(["--config", str(config)])
+    excludes: List[str] = []
     # When scanning "." avoid recursing into dot-prefixed dirs (.venv, .git, etc.)
     if "." in scan_paths:
-        for pattern in _EXCLUDE_DOT_DIRS:
-            cmd.extend(["--exclude", pattern])
+        excludes.extend(_EXCLUDE_DOT_DIRS)
     # Never analyse test code (any path under test/ or tests/).
-    for pattern in _EXCLUDE_TEST_DIRS:
-        cmd.extend(["--exclude", pattern])
+    excludes.extend(_EXCLUDE_TEST_DIRS)
+    if excludes:
+        cmd.extend(["--exclude", ",".join(excludes)])
     cmd.extend(scan_paths)
     return cmd
 

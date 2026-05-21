@@ -16,8 +16,7 @@ def test_build_vulture_cmd_excludes_dot_dirs_when_scanning_root(
     from vulture_gate.gate import _build_vulture_cmd
 
     cmd = _build_vulture_cmd(["."])
-    # Collect all patterns that follow --exclude
-    patterns = [cmd[i + 1] for i, x in enumerate(cmd) if x == "--exclude"]
+    patterns = _vulture_exclude_patterns(cmd)
     assert ".*" in patterns
     assert "*/.?*" in patterns
 
@@ -29,11 +28,19 @@ def test_build_vulture_cmd_excludes_test_dirs(monkeypatch: pytest.MonkeyPatch) -
 
     for scan_paths in [["."], ["src"]]:
         cmd = _build_vulture_cmd(scan_paths)
-        patterns = [cmd[i + 1] for i, x in enumerate(cmd) if x == "--exclude"]
+        patterns = _vulture_exclude_patterns(cmd)
         assert "test/*" in patterns
         assert "tests/*" in patterns
         assert "*/test/*" in patterns
         assert "*/tests/*" in patterns
+
+
+def _vulture_exclude_patterns(cmd: List[str]) -> List[str]:
+    patterns: List[str] = []
+    for index, item in enumerate(cmd):
+        if item == "--exclude":
+            patterns.extend(cmd[index + 1].split(","))
+    return patterns
 
 
 def _fake_run_success(cmd: List[str]) -> Tuple[int, str, str]:
@@ -155,4 +162,3 @@ def test_run_vulture_gate_issue_in_changed_but_outside_scope_filtered_out(
     assert failed is False
     assert report is not None
     assert report["issues"] == []
-
