@@ -33,8 +33,8 @@ def test_list_changed_python_files_no_scope(monkeypatch: pytest.MonkeyPatch) -> 
     assert "cli/runner.py" in result or len(result) >= 0
 
 
-def test_run_full_integration_minimal(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Run _run_full with audit only and all gates mocked to pass."""
+def test_run_standard_pipeline_default_mode(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Run _run_standard_pipeline without --full and all gates mocked to pass."""
     def _fake_list(*, package_dir) -> list:
         return []
 
@@ -53,11 +53,11 @@ def test_run_full_integration_minimal(monkeypatch: pytest.MonkeyPatch) -> None:
         sonar=False,
         semantic=False,
     )
-    code, report = runner_mod._run_full(args)
+    code, report = runner_mod._run_standard_pipeline(args)
     assert code == 0
     assert report["status"] == "pass"
     assert report["changed_files"] == []
-    assert report["pipeline_mode"] == "full"
+    assert report["pipeline_mode"] == "default"
     assert "stage_durations_sec" in report
 
 

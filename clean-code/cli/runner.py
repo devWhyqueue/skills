@@ -196,7 +196,7 @@ def _run_semantic_resume(args: SimpleNamespace) -> tuple[int, dict[str, Any]]:
     return (0 if status == "pass" else 2), report
 
 
-def _run_full(args: SimpleNamespace) -> tuple[int, dict[str, Any]]:
+def _run_standard_pipeline(args: SimpleNamespace) -> tuple[int, dict[str, Any]]:
     package_dir = _resolve_package_dir(args.scope)
 
     files = _list_changed_python_files(package_dir=package_dir)
@@ -245,7 +245,7 @@ def _run_full(args: SimpleNamespace) -> tuple[int, dict[str, Any]]:
         "scope": scope,
         "package": (package_dir.as_posix() if package_dir is not None else None),
         "next_action": _next_action(status, semantic_report),
-        "pipeline_mode": "full",
+        "pipeline_mode": "full" if bool(getattr(args, "full", False)) else "default",
         "stage_durations_sec": _stage_durations(
             audit_duration_sec=audit_duration_sec,
             vulture_report=vulture_report,
@@ -260,7 +260,7 @@ def _run_full(args: SimpleNamespace) -> tuple[int, dict[str, Any]]:
 
 
 def _run_all_stages(args: SimpleNamespace) -> tuple[int, dict[str, Any]]:
-    return _run_full(args)
+    return _run_standard_pipeline(args)
 
 
 def run(args: SimpleNamespace) -> int:

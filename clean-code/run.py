@@ -23,7 +23,10 @@ from cli.runner import run as run_skill
     "--full",
     is_flag=True,
     default=False,
-    help="Run audit + pyright + vulture + pytest + sonar + semantic gates.",
+    help=(
+        "Extend the default pipeline with Sonar and Semantic gates "
+        "(default without this flag: audit + pyright + vulture + pytest only)."
+    ),
 )
 @click.option(
     "--min-coverage",

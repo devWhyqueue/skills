@@ -3,7 +3,7 @@ name: clean-code
 description: Review uncommitted and untracked Python files for clean code rule violations, automatically fix them if possible.
 metadata:
   short-description: PR code cleanup
-  version: 1.0.0
+  version: 1.0.1
 ---
 
 ## What this skill does
@@ -11,10 +11,9 @@ Audits uncommitted and untracked Python files against clean_code_rules.yml
 ## Default behavior
 - Scope: uncommitted and untracked *.py files only; paths under a `test` or `tests` directory are excluded
 - `--scope` is optional; when provided, restricts the run to that package (name or path)
-- Default run: audit + pyright + vulture + pytest; skip Sonar and Semantic gates
-- `--full`: run the full pipeline including Sonar and Semantic gates
+- **Default invocation** (no flags): audit + pyright + vulture + pytest; Sonar and Semantic are skipped
+- **`--full`**: same stages as the default invocation, plus Sonar and Semantic gates
 - `--min-coverage N`: optional; require minimum coverage N% for the pytest stage to pass (default: no threshold; coverage is reported only)
-- Audit, Pyright, Vulture, Pytest (with coverage), Sonar, and Semantic run in a fixed staged flow when `--full` is used
 
 ## Setup
 - Install the dependencies from this skill's `pyproject.toml` as dev deps in the calling project.
@@ -25,10 +24,12 @@ Audits uncommitted and untracked Python files against clean_code_rules.yml
 ## How to run
 From the calling project root:
 
-- Default minimal run (audit + pyright + vulture + pytest):  
-  `uv run python "$env:USERPROFILE\.codex\skills\clean-code\run.py"`
-- Full run (minimal + Sonar + Semantic):  
-  `uv run python "$env:USERPROFILE\.codex\skills\clean-code\run.py" --full`
+| Goal | Command |
+| --- | --- |
+| Default (audit + pyright + vulture + pytest) | `uv run python "$env:USERPROFILE\.codex\skills\clean-code\run.py"` |
+| Add Sonar + Semantic | append `--full` to the default command |
+
+Examples:
 - Require minimum coverage (e.g. 90%):  
   `uv run python "$env:USERPROFILE\.codex\skills\clean-code\run.py" --min-coverage 90`
 - Restrict to a package:  
@@ -57,6 +58,7 @@ The runner prints a single JSON report (first failing stage or final pass) with:
 - sonar: { quality_gate, conditions, ... } | null
 - semantic: { ... } | null
 - summary, scope, package, next_action
+- pipeline_mode: `default` (no `--full`), `full` (`--full`), or `semantic_resume` (semantic batch only)
 
 Exit codes:
 - 0 => pass
@@ -64,7 +66,7 @@ Exit codes:
 - 3 => internal error / misconfiguration
 
 ## Procedure for agents
-1) From the calling project root, run the skill (default invocation is the fast minimal path).
+1) From the calling project root, run the skill with no flags unless you need Sonar/Semantic (`--full`).
 2) If it fails, fix per `clean_code_rules.yml` (or semantic ledger) and rerun.
 3) Never fabricate results. Always rely on the script output.
 4) Do not reconfigure or relax pipeline tools (vulture, pyright, pytest, sonar, etc.) to make the run pass; fix the code or rules instead.
