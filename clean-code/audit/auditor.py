@@ -19,6 +19,9 @@ from .files import filter_python_files, is_within_dir, read_text
 
 logger = logging.getLogger(__name__)
 
+_IGNORED_PACKAGE_DIRS = frozenset({"__pycache__"})
+MAX_PACKAGE_CHILDREN = 9
+
 
 @dataclass(frozen=True, slots=True)
 class Violation:
@@ -40,8 +43,17 @@ def _package_root_for_file(path: Path) -> Path | None:
     return None
 
 
-def _count_python_files_in_package(pkg_dir: Path) -> int:
-    return sum(1 for p in pkg_dir.iterdir() if p.is_file() and p.suffix == ".py")
+def _count_package_children(pkg_dir: Path) -> int:
+    """Count direct .py files and subfolders; ignore ``__pycache__``."""
+    count = 0
+    for child in pkg_dir.iterdir():
+        if child.is_dir():
+            if child.name in _IGNORED_PACKAGE_DIRS:
+                continue
+            count += 1
+        elif child.is_file() and child.suffix == ".py":
+            count += 1
+    return count
 
 
 def _collect_text_violations(path_str: str, source: str) -> list[Violation]:
@@ -131,14 +143,17 @@ def _collect_package_violations(path_str: str) -> list[Violation]:
     pkg_root = _package_root_for_file(Path(path_str))
     if pkg_root is None:
         return violations
-    count_files = _count_python_files_in_package(pkg_root)
-    if count_files > 7:
+    child_count = _count_package_children(pkg_root)
+    if child_count >= MAX_PACKAGE_CHILDREN:
         violations.append(
             Violation(
                 rule_id="structure.max_files_per_package",
                 file=path_str,
                 line=None,
-                message=f"Package '{pkg_root}' has {count_files} Python files; should be <= 7.",
+                message=(
+                    f"Package '{pkg_root}' has {child_count} children "
+                    f"(.py files + folders); should be < {MAX_PACKAGE_CHILDREN}."
+                ),
             )
         )
     return violations

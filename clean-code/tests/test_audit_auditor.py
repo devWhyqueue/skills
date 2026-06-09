@@ -5,7 +5,13 @@ from pathlib import Path
 
 import pytest
 
-from audit.auditor import Violation, audit_file, audit_python_files
+from audit.auditor import (
+    MAX_PACKAGE_CHILDREN,
+    Violation,
+    _count_package_children,
+    audit_file,
+    audit_python_files,
+)
 
 
 def test_audit_file_clean(tmp_path: Path) -> None:
@@ -90,3 +96,43 @@ def test_violation_dataclass() -> None:
     assert v.line == 1
     assert v.message == "m"
     assert v.evidence == "e"
+
+
+def test_count_package_children_ignores_pycache(tmp_path: Path) -> None:
+    pkg = tmp_path / "pkg"
+    pkg.mkdir()
+    (pkg / "__init__.py").write_text("")
+    (pkg / "mod.py").write_text("")
+    (pkg / "subpkg").mkdir()
+    (pkg / "__pycache__").mkdir()
+    (pkg / "__pycache__" / "mod.cpython-312.pyc").write_bytes(b"x")
+    assert _count_package_children(pkg) == 3
+
+
+def test_audit_file_package_child_limit(tmp_path: Path) -> None:
+    pkg = tmp_path / "pkg"
+    pkg.mkdir()
+    (pkg / "__init__.py").write_text("")
+    for idx in range(MAX_PACKAGE_CHILDREN - 2):
+        (pkg / f"mod_{idx}.py").write_text('"""Mod."""\n')
+    ok_violations = audit_file(pkg / "mod_0.py")
+    assert not any(v.rule_id == "structure.max_files_per_package" for v in ok_violations)
+
+    (pkg / f"mod_{MAX_PACKAGE_CHILDREN - 2}.py").write_text('"""Mod."""\n')
+    over_violations = audit_file(pkg / "mod_0.py")
+    assert any(v.rule_id == "structure.max_files_per_package" for v in over_violations)
+
+
+def test_audit_file_package_counts_subfolders(tmp_path: Path) -> None:
+    pkg = tmp_path / "pkg"
+    pkg.mkdir()
+    (pkg / "__init__.py").write_text("")
+    (pkg / "mod.py").write_text('"""Mod."""\n')
+    for idx in range(MAX_PACKAGE_CHILDREN - 3):
+        (pkg / f"sub_{idx}").mkdir()
+    ok_violations = audit_file(pkg / "mod.py")
+    assert not any(v.rule_id == "structure.max_files_per_package" for v in ok_violations)
+
+    (pkg / f"sub_{MAX_PACKAGE_CHILDREN - 3}").mkdir()
+    over_violations = audit_file(pkg / "mod.py")
+    assert any(v.rule_id == "structure.max_files_per_package" for v in over_violations)
