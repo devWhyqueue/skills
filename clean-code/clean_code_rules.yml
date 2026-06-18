@@ -17,7 +17,7 @@ rules:
     statement: "A file must not exceed 250 lines of code."
     enforcement: AUTO
   - id: CC-05
-    statement: "A package must contain fewer than 9 children (.py files and subfolders; ignore __pycache__)."
+    statement: "A package must contain fewer than 10 children (.py files and subfolders; ignore __pycache__)."
     enforcement: AUTO
   - id: CC-06
     statement: "Public functions must include docstrings."

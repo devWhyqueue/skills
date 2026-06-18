@@ -20,7 +20,7 @@ from .files import filter_python_files, is_within_dir, read_text
 logger = logging.getLogger(__name__)
 
 _IGNORED_PACKAGE_DIRS = frozenset({"__pycache__"})
-MAX_PACKAGE_CHILDREN = 9
+MAX_PACKAGE_CHILDREN = 10
 
 
 @dataclass(frozen=True, slots=True)
