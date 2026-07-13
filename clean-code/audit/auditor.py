@@ -9,6 +9,7 @@ from .checks_ast import (
     all_args_typed,
     detect_imports_not_at_file_top,
     detect_non_snake_case_identifiers,
+    function_body_span,
     function_length_lines,
     has_docstring,
     is_airflow_length_exempt,
@@ -21,6 +22,7 @@ logger = logging.getLogger(__name__)
 
 _IGNORED_PACKAGE_DIRS = frozenset({"__pycache__"})
 MAX_PACKAGE_CHILDREN = 10
+MAX_FUNCTION_LINES = 25
 
 
 @dataclass(frozen=True, slots=True)
@@ -116,13 +118,19 @@ def _collect_ast_violations_functions(path_str: str, tree: ast.AST) -> list[Viol
             )
         if not is_airflow_length_exempt(func):
             flen = function_length_lines(func)
-            if flen > 25:
+            if flen > MAX_FUNCTION_LINES:
+                span = function_body_span(func)
+                location = f" (body lines {span[0]}-{span[1]})" if span else ""
+                over_by = flen - MAX_FUNCTION_LINES
                 violations.append(
                     Violation(
                         rule_id="organization.function_length",
                         file=path_str,
                         line=getattr(func, "lineno", None),
-                        message=f"Function '{func.name}' is {flen} lines; should be < 25.",
+                        message=(
+                            f"Function '{func.name}' is {flen} lines{location}; "
+                            f"should be < {MAX_FUNCTION_LINES} (cut at least {over_by})."
+                        ),
                     )
                 )
     return violations

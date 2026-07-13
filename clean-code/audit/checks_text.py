@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import re
 
+MAX_FILE_LINES = 250
+
 
 def detect_broad_except(source: str) -> list[tuple[int, str]]:
     """Return (line_no, line_text) for lines with broad except Exception/BaseException."""
@@ -67,9 +69,15 @@ def _file_level_violation_tuples(
 
     out: list[tuple[str, int | None, str, str | None]] = []
     loc = count_lines(source)
-    if loc > 250:
+    if loc > MAX_FILE_LINES:
+        over_by = loc - MAX_FILE_LINES
         out.append(
-            ("structure.file_max_loc", None, f"File exceeds 250 lines ({loc}).", None)
+            (
+                "structure.file_max_loc",
+                None,
+                f"File exceeds {MAX_FILE_LINES} lines ({loc}; cut at least {over_by}).",
+                None,
+            )
         )
     if detect_mixed_spark_sql_and_pyspark_api(source):
         out.append(

@@ -52,6 +52,27 @@ def function_length_lines(func: ast.FunctionDef) -> int:
     return (end - start) + 1
 
 
+def function_body_span(func: ast.FunctionDef) -> tuple[int, int] | None:
+    """Return (start_line, end_line) of a function's body, or None if it has no body lines.
+
+    Lets callers report exactly where an over-length function's body sits
+    (e.g. "lines 42-70") instead of just its start line, so a violation
+    message can point straight at the code to trim.
+    """
+    body = list(func.body or [])
+    if not body:
+        return None
+
+    start = getattr(body[0], "lineno", None)
+    end = getattr(body[-1], "end_lineno", None)
+    if start is None or end is None:
+        return None
+
+    start = max(int(start), 1)
+    end = max(int(end), start)
+    return start, end
+
+
 def is_airflow_length_exempt(func: ast.FunctionDef) -> bool:
     """
     Return True if this function is an Airflow DAG/task_group factory.
