@@ -92,7 +92,7 @@ def test_run_scan_adds_project_base_dir(monkeypatch: pytest.MonkeyPatch) -> None
     monkeypatch.setattr(scan_mod, "read_project_properties", lambda: {})
     scan_mod.run_scan("token", "main", project_base_dir=Path("/tmp/scan-base"))
     assert "--sonar-project-base-dir" in seen_cmd
-    assert "/tmp/scan-base" in seen_cmd
+    assert str(Path("/tmp/scan-base")) in seen_cmd
 
 
 def test_run_scan_disables_scanner_qualitygate_wait(

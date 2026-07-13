@@ -11,6 +11,16 @@ COVERAGE_REPORT_FILENAME = "coverage.xml"
 PYTEST_EXIT_NO_TESTS_COLLECTED = 5
 
 
+def _package_module_parts(path_obj: Path) -> list[str]:
+    """Return module parts by walking parent packages with ``__init__.py``."""
+    module_parts = [path_obj.stem]
+    parent = path_obj.parent
+    while (parent / "__init__.py").is_file():
+        module_parts.append(parent.name)
+        parent = parent.parent
+    return list(reversed(module_parts)) if len(module_parts) > 1 else []
+
+
 def _coverage_module_from_path(path: str) -> Optional[str]:
     """Map a changed file path to the importable module name used by pytest-cov."""
     if not path.endswith(".py"):
@@ -23,6 +33,10 @@ def _coverage_module_from_path(path: str) -> Optional[str]:
 
     if "tests" in parts or "test" in parts:
         return None
+
+    package_parts = _package_module_parts(path_obj)
+    if package_parts:
+        return ".".join(package_parts)
 
     module_parts = list(path_obj.with_suffix("").parts)
     if "src" in module_parts:

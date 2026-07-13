@@ -33,6 +33,19 @@ def test_cov_modules_from_changed_files_nested_src_root() -> None:
     ) == ["bib.metadata.cache", "bib.models"]
 
 
+def test_coverage_module_uses_nested_package_root(tmp_path: Path) -> None:
+    """A package below a nested code directory retains its importable name."""
+    package = tmp_path / "experiments" / "benchmark" / "code" / "benchmark"
+    commands = package / "commands"
+    commands.mkdir(parents=True)
+    (package / "__init__.py").touch()
+    (commands / "__init__.py").touch()
+    smoke = commands / "smoke.py"
+    smoke.touch()
+
+    assert pytest_gate._coverage_module_from_path(str(smoke)) == "benchmark.commands.smoke"
+
+
 def test_cov_modules_from_changed_files_skips_non_py() -> None:
     assert pytest_gate._cov_modules_from_changed_files(["cli/runner.py", "readme.md"]) == [
         "cli.runner",
