@@ -49,3 +49,20 @@ def test_full_flag_passes_full_true(monkeypatch) -> None:
 
     assert result.exit_code == 0
     assert observed["full"] is True
+
+
+def test_json_flag_passes_as_json_true(monkeypatch) -> None:
+    """Pass the complete-report switch through to the runner."""
+    observed: dict[str, object] = {}
+
+    def _fake_run_skill(args) -> int:
+        observed["as_json"] = args.as_json
+        return 0
+
+    monkeypatch.setattr(run_mod, "load_env_file", lambda path: None)
+    monkeypatch.setattr(run_mod, "run_skill", _fake_run_skill)
+
+    result = CliRunner().invoke(run_mod.main, ["--json"])
+
+    assert result.exit_code == 0
+    assert observed["as_json"] is True

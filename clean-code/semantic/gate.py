@@ -18,7 +18,7 @@ SEMANTIC_RULES_PATH = Path(__file__).resolve().parent.parent / "clean_code_rules
 
 def default_semantic_out_dir() -> Path:
     """
-    Use a stable temp directory per git branch so a human/Codex can edit the
+    Use a stable temp directory per git branch so a reviewer or agent can edit the
     semantic ledger and rerun without losing the file.
     """
     branch = current_branch()
@@ -49,7 +49,9 @@ def _build_semantic_pass_report(out_dir: Path) -> dict[str, object]:
         "summary": {"fails": 0, "needs_human": 0},
         "files": [],
     }
-    ledger_path.write_text(yaml.safe_dump(empty_index, sort_keys=False), encoding="utf-8")
+    ledger_path.write_text(
+        yaml.safe_dump(empty_index, sort_keys=False), encoding="utf-8"
+    )
     ledger_template_path.write_text(
         yaml.safe_dump(empty_index, sort_keys=False), encoding="utf-8"
     )
@@ -109,9 +111,7 @@ def run_semantic_gate_if_enabled(
     next_files = _select_next_files(
         files=filtered_files, out_dir=out_dir, rules_path=SEMANTIC_RULES_PATH
     )
-    semantic_report = _run_scaffold_or_pass(
-        next_files=next_files, filtered_files=filtered_files, out_dir=out_dir
-    )
+    semantic_report = _run_semantic_report(next_files, filtered_files, out_dir)
     if not next_files:
         return semantic_report
     ledger_path = out_dir / "semantic_ledger.yml"
@@ -123,6 +123,15 @@ def run_semantic_gate_if_enabled(
         prompt_path=out_dir / "semantic_prompt.md",
     )
     return {**semantic_report, **semantic_validation}
+
+
+def _run_semantic_report(
+    next_files: list[str], filtered_files: list[str], out_dir: Path
+) -> dict[str, object]:
+    """Build the semantic report for the selected batch."""
+    return _run_scaffold_or_pass(
+        next_files=next_files, filtered_files=filtered_files, out_dir=out_dir
+    )
 
 
 def _rewrite_index_prompt_for_next_batch(

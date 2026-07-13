@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import logging
 import time
 from dataclasses import asdict
@@ -13,17 +12,21 @@ from audit import audit_python_files
 from audit.files import exclude_test_folders, filter_python_files, is_within_dir
 from audit.fix import fix_files
 from git import uncommitted_changed_files
-from semantic.gate import default_semantic_out_dir, reset_semantic_out_dir, run_semantic_gate_if_enabled
+from semantic.gate import reset_semantic_out_dir
 
 from cli.gates import run_gates
-from cli.helpers import semantic_failure_summary
+from cli.output import format_report
+from cli.semantic_resume import (
+    run_semantic_resume,
+    semantic_resume_available as _semantic_resume_available,
+    write_cached_report as _write_cached_report,
+)
 
 logger = logging.getLogger(__name__)
-SEMANTIC_CACHE_FILENAME = "pipeline_report.json"
 
 
-def _print_report(report: dict[str, Any]) -> None:
-    logger.info(json.dumps(report, indent=2))
+def _print_report(report: dict[str, Any], *, as_json: bool) -> None:
+    logger.info(format_report(report, as_json=as_json))
 
 
 def _resolve_package_dir(scope: str) -> Optional[Path]:
@@ -110,90 +113,14 @@ def _next_action(status: str, semantic_report: Any) -> str:
             "Semantic review required: address items in semantic_ledger.yml "
             "(or provide evaluated ledger output), then re-run this skill."
         )
-    return "Fix remaining violations (Codex should edit the files), then re-run this skill."
-
-
-def _semantic_cache_path() -> Path:
-    return default_semantic_out_dir() / SEMANTIC_CACHE_FILENAME
-
-
-def _load_cached_report() -> Optional[dict[str, Any]]:
-    cache_path = _semantic_cache_path()
-    if not cache_path.exists():
-        return None
-    try:
-        raw = json.loads(cache_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return None
-    return raw if isinstance(raw, dict) else None
-
-
-def _write_cached_report(report: dict[str, Any]) -> None:
-    out_dir = default_semantic_out_dir()
-    out_dir.mkdir(parents=True, exist_ok=True)
-    _semantic_cache_path().write_text(json.dumps(report, indent=2), encoding="utf-8")
-
-
-def _semantic_resume_available(args: SimpleNamespace) -> bool:
-    if not getattr(args, "semantic", False):
-        return False
-    cached_report = _load_cached_report()
-    if not isinstance(cached_report, dict):
-        return False
-    semantic_report = cached_report.get("semantic")
-    if not isinstance(semantic_report, dict):
-        return False
-    return str(semantic_report.get("status", "")).strip() in {
-        "pending",
-        "requires_reviewer",
-        "fail",
-    }
+    return "Fix remaining violations, then re-run this skill."
 
 
 def _run_semantic_resume(args: SimpleNamespace) -> tuple[int, dict[str, Any]]:
+    """Resume semantic review with the currently changed files."""
     package_dir = _resolve_package_dir(args.scope)
     files = _list_changed_python_files(package_dir=package_dir)
-    cached_report = _load_cached_report() or {}
-
-    semantic_start = time.perf_counter()
-    semantic_report = run_semantic_gate_if_enabled(enabled=True, files=files)
-    semantic_duration_sec = round(time.perf_counter() - semantic_start, 3)
-    if isinstance(semantic_report, dict):
-        semantic_report["duration_sec"] = semantic_duration_sec
-
-    status = "pass"
-    summary = "All clean code checks passed."
-    if isinstance(semantic_report, dict):
-        semantic_summary = semantic_failure_summary(semantic_report)
-        if semantic_summary is not None:
-            status = "fail"
-            summary = semantic_summary
-
-    scope = (
-        package_dir.name if package_dir is not None else derive_scope_from_files(files)
-    )
-    report: dict[str, Any] = {
-        "status": status,
-        "changed_files": files,
-        "fixed_files": cached_report.get("fixed_files", []),
-        "violations": cached_report.get("violations", []),
-        "vulture": cached_report.get("vulture"),
-        "sonar": cached_report.get("sonar"),
-        "pyright": cached_report.get("pyright"),
-        "pytest": cached_report.get("pytest"),
-        "semantic": semantic_report,
-        "summary": summary,
-        "scope": scope,
-        "package": (package_dir.as_posix() if package_dir is not None else None),
-        "next_action": _next_action(status, semantic_report),
-        "pipeline_mode": "semantic_resume",
-        "stage_durations_sec": _stage_durations(
-            semantic_report=semantic_report,
-            existing=cached_report.get("stage_durations_sec"),
-        ),
-    }
-    _write_cached_report(report)
-    return (0 if status == "pass" else 2), report
+    return run_semantic_resume(package_dir=package_dir, files=files)
 
 
 def _run_standard_pipeline(args: SimpleNamespace) -> tuple[int, dict[str, Any]]:
@@ -263,31 +190,37 @@ def _run_all_stages(args: SimpleNamespace) -> tuple[int, dict[str, Any]]:
     return _run_standard_pipeline(args)
 
 
+def _prepare_run(args: SimpleNamespace) -> bool:
+    """Set fixed pipeline options and prepare semantic state."""
+    args.max_iterations = 5
+    args.audit = True
+    args.vulture = True
+    args.pyright = True
+    args.pytest = True
+    args.sonar = bool(getattr(args, "full", False))
+    args.semantic = bool(getattr(args, "full", False))
+    resume_semantic = _semantic_resume_available(args)
+    if args.semantic and not resume_semantic:
+        reset_semantic_out_dir()
+    return resume_semantic
+
+
 def run(args: SimpleNamespace) -> int:
     """Run the full skill pipeline (audit, pyright, vulture, optional sonar/semantic). Returns 0/2/3."""
     try:
-        args.max_iterations = 5
-        args.audit = True
-        args.vulture = True
-        args.pyright = True
-        args.pytest = True
-        args.sonar = bool(getattr(args, "full", False))
-        args.semantic = bool(getattr(args, "full", False))
-        resume_semantic = _semantic_resume_available(args)
-        if args.semantic and not resume_semantic:
-            reset_semantic_out_dir()
-        if resume_semantic:
+        if _prepare_run(args):
             code, report = _run_semantic_resume(args)
             if code != 0:
-                _print_report(report)
+                _print_report(report, as_json=bool(getattr(args, "as_json", False)))
                 return code
         code, report = _run_all_stages(args)
         if args.semantic:
             _write_cached_report(report)
-        _print_report(report)
+        _print_report(report, as_json=bool(getattr(args, "as_json", False)))
         return code
     except Exception as e:
         _print_report(
-            {"status": "fail", "summary": f"Internal error: {type(e).__name__}: {e}"}
+            {"status": "fail", "summary": f"Internal error: {type(e).__name__}: {e}"},
+            as_json=bool(getattr(args, "as_json", False)),
         )
         return 3

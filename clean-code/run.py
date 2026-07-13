@@ -43,6 +43,13 @@ from cli.runner import run as run_skill
         "When set, Vulture scans these paths instead of the default root/src."
     ),
 )
+@click.option(
+    "--json",
+    "as_json",
+    is_flag=True,
+    default=False,
+    help="Print the complete machine-readable report instead of concise text.",
+)
 def main(**kwargs: object) -> None:
     """Entry point: load env, run skill, exit with its return code."""
     logging.basicConfig(level=logging.INFO, format="%(message)s", stream=sys.stdout)

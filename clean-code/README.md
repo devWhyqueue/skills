@@ -22,6 +22,9 @@ From the calling project’s venv:
 **Default** (audit + pyright + vulture + pytest):
 `uv run python "$env:USERPROFILE\.codex\skills\clean-code\run.py"`
 
+Default output is concise text for repeated agent runs. Add `--json` for the complete
+machine-readable report, including raw tool output.
+
 **With Sonar + Semantic** (append `--full`):
 `uv run python "$env:USERPROFILE\.codex\skills\clean-code\run.py" --full`
 
