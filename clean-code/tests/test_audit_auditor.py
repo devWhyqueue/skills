@@ -1,4 +1,5 @@
 """Tests for audit.auditor (audit_file, audit_python_files, Violation)."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -16,7 +17,9 @@ from audit.auditor import (
 
 def test_audit_file_clean(tmp_path: Path) -> None:
     p = tmp_path / "m.py"
-    p.write_text('"""Doc."""\nfrom __future__ import annotations\ndef foo(x: int) -> str:\n    """Bar."""\n    return str(x)\n')
+    p.write_text(
+        '"""Doc."""\nfrom __future__ import annotations\ndef foo(x: int) -> str:\n    """Bar."""\n    return str(x)\n'
+    )
     violations = audit_file(p)
     assert isinstance(violations, list)
     # May have structure.file_max_loc if long; we keep file short
@@ -57,6 +60,22 @@ def test_audit_file_print(tmp_path: Path) -> None:
     p.write_text('"""Mod."""\ndef f() -> None:\n    print("x")\n')
     violations = audit_file(p)
     assert any(v.rule_id == "organization.no_print" for v in violations)
+
+
+def test_function_length_message_is_post_ruff(tmp_path: Path) -> None:
+    body = "\n".join(f"    value = {index}" for index in range(26))
+    path = tmp_path / "long.py"
+    path.write_text(f"def long_function() -> None:\n{body}\n")
+
+    finding = next(
+        violation
+        for violation in audit_file(path)
+        if violation.rule_id == "organization.function_length"
+    )
+    assert finding.message == (
+        "Function 'long_function' has 26 post-Ruff body lines "
+        "(max 25; cut/extract 1; don't reformat)."
+    )
 
 
 def test_audit_python_files_empty() -> None:
@@ -116,7 +135,9 @@ def test_audit_file_package_child_limit(tmp_path: Path) -> None:
     for idx in range(MAX_PACKAGE_CHILDREN - 2):
         (pkg / f"mod_{idx}.py").write_text('"""Mod."""\n')
     ok_violations = audit_file(pkg / "mod_0.py")
-    assert not any(v.rule_id == "structure.max_files_per_package" for v in ok_violations)
+    assert not any(
+        v.rule_id == "structure.max_files_per_package" for v in ok_violations
+    )
 
     (pkg / f"mod_{MAX_PACKAGE_CHILDREN - 2}.py").write_text('"""Mod."""\n')
     over_violations = audit_file(pkg / "mod_0.py")
@@ -131,7 +152,9 @@ def test_audit_file_package_counts_subfolders(tmp_path: Path) -> None:
     for idx in range(MAX_PACKAGE_CHILDREN - 3):
         (pkg / f"sub_{idx}").mkdir()
     ok_violations = audit_file(pkg / "mod.py")
-    assert not any(v.rule_id == "structure.max_files_per_package" for v in ok_violations)
+    assert not any(
+        v.rule_id == "structure.max_files_per_package" for v in ok_violations
+    )
 
     (pkg / f"sub_{MAX_PACKAGE_CHILDREN - 3}").mkdir()
     over_violations = audit_file(pkg / "mod.py")

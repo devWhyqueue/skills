@@ -75,7 +75,8 @@ def _file_level_violation_tuples(
             (
                 "structure.file_max_loc",
                 None,
-                f"File exceeds {MAX_FILE_LINES} lines ({loc}; cut at least {over_by}).",
+                f"File has {loc} post-Ruff lines (max {MAX_FILE_LINES}; "
+                f"cut/extract {over_by}; don't reformat).",
                 None,
             )
         )

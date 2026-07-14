@@ -9,7 +9,6 @@ from .checks_ast import (
     all_args_typed,
     detect_imports_not_at_file_top,
     detect_non_snake_case_identifiers,
-    function_body_span,
     function_length_lines,
     has_docstring,
     is_airflow_length_exempt,
@@ -119,8 +118,6 @@ def _collect_ast_violations_functions(path_str: str, tree: ast.AST) -> list[Viol
         if not is_airflow_length_exempt(func):
             flen = function_length_lines(func)
             if flen > MAX_FUNCTION_LINES:
-                span = function_body_span(func)
-                location = f" (body lines {span[0]}-{span[1]})" if span else ""
                 over_by = flen - MAX_FUNCTION_LINES
                 violations.append(
                     Violation(
@@ -128,8 +125,9 @@ def _collect_ast_violations_functions(path_str: str, tree: ast.AST) -> list[Viol
                         file=path_str,
                         line=getattr(func, "lineno", None),
                         message=(
-                            f"Function '{func.name}' is {flen} lines{location}; "
-                            f"should be < {MAX_FUNCTION_LINES} (cut at least {over_by})."
+                            f"Function '{func.name}' has {flen} post-Ruff body lines "
+                            f"(max {MAX_FUNCTION_LINES}; cut/extract {over_by}; "
+                            "don't reformat)."
                         ),
                     )
                 )

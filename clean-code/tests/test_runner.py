@@ -1,4 +1,5 @@
 """Tests for cli.runner (internal helpers and run with mocks)."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -21,6 +22,14 @@ def test_resolve_package_dir_value(monkeypatch: pytest.MonkeyPatch) -> None:
     assert runner_mod._resolve_package_dir("etl") == Path("src/etl")
 
 
+def test_next_action_for_length_violation() -> None:
+    violation = SimpleNamespace(rule_id="organization.function_length")
+
+    assert runner_mod._next_action("fail", None, [violation]) == (
+        "Post-Ruff length limit: simplify or extract; don't reformat."
+    )
+
+
 def test_list_changed_python_files_no_scope(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         runner_mod,
@@ -28,13 +37,16 @@ def test_list_changed_python_files_no_scope(monkeypatch: pytest.MonkeyPatch) -> 
         lambda: ["cli/runner.py", "tests/test_x.py"],
     )
     monkeypatch.setattr(runner_mod, "filter_python_files", lambda x: list(x))
-    monkeypatch.setattr(runner_mod, "exclude_test_folders", lambda x: [f for f in x if "test" not in f])
+    monkeypatch.setattr(
+        runner_mod, "exclude_test_folders", lambda x: [f for f in x if "test" not in f]
+    )
     result = runner_mod._list_changed_python_files(package_dir=None)
     assert "cli/runner.py" in result or len(result) >= 0
 
 
 def test_run_standard_pipeline_default_mode(monkeypatch: pytest.MonkeyPatch) -> None:
     """Run _run_standard_pipeline without --full and all gates mocked to pass."""
+
     def _fake_list(*, package_dir) -> list:
         return []
 
@@ -96,7 +108,9 @@ def test_run_returns_three_on_exception(monkeypatch: pytest.MonkeyPatch) -> None
     assert result == 3
 
 
-def test_run_default_disables_sonar_and_semantic(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_run_default_disables_sonar_and_semantic(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     observed: dict[str, bool] = {}
 
     def _fake_stages(args) -> tuple[int, dict]:

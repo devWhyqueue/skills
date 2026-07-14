@@ -102,7 +102,7 @@ def _stage_durations(
     return durations
 
 
-def _next_action(status: str, semantic_report: Any) -> str:
+def _next_action(status: str, semantic_report: Any, violations: list[Any]) -> str:
     if status != "fail":
         return "Done."
     if isinstance(semantic_report, dict) and semantic_report.get("status") in {
@@ -113,6 +113,9 @@ def _next_action(status: str, semantic_report: Any) -> str:
             "Semantic review required: address items in semantic_ledger.yml "
             "(or provide evaluated ledger output), then re-run this skill."
         )
+    length_rules = {"structure.file_max_loc", "organization.function_length"}
+    if any(getattr(item, "rule_id", None) in length_rules for item in violations):
+        return "Post-Ruff length limit: simplify or extract; don't reformat."
     return "Fix remaining violations, then re-run this skill."
 
 
@@ -171,7 +174,7 @@ def _run_standard_pipeline(args: SimpleNamespace) -> tuple[int, dict[str, Any]]:
         "summary": summary,
         "scope": scope,
         "package": (package_dir.as_posix() if package_dir is not None else None),
-        "next_action": _next_action(status, semantic_report),
+        "next_action": _next_action(status, semantic_report, violations),
         "pipeline_mode": "full" if bool(getattr(args, "full", False)) else "default",
         "stage_durations_sec": _stage_durations(
             audit_duration_sec=audit_duration_sec,

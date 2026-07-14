@@ -66,4 +66,7 @@ def test_collect_text_violation_tuples_broad_except() -> None:
 def test_collect_text_violation_tuples_file_loc() -> None:
     source = "\n".join(["x = 1"] * 260)
     out = collect_text_violation_tuples("f.py", source)
-    assert any(t[0] == "structure.file_max_loc" for t in out)
+    finding = next(t for t in out if t[0] == "structure.file_max_loc")
+    assert finding[2] == (
+        "File has 260 post-Ruff lines (max 250; cut/extract 10; don't reformat)."
+    )

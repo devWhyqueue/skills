@@ -13,3 +13,5 @@ Run from the calling project root:
 - Default output is concise text. Exit `0` passes, `2` fails, and `3` signals an internal error.
 
 Fix reported violations without relaxing tools or rules, then rerun. For semantic review, evaluate each generated ledger entry as `PASS`, `FAIL`, or `NA` (`NEEDS_HUMAN` only when undecidable); keep rerunning until no pending files remain.
+
+Ruff formatting is canonical and length limits are checked afterward. Fix overages by simplifying or extracting code, never by manual reformatting.
