@@ -64,6 +64,21 @@ def _cov_modules_from_changed_files(changed_files: List[str]) -> List[str]:
     return sorted(out)
 
 
+def _coverage_package_roots(changed_files: List[str]) -> List[str]:
+    """Return one coverage target per top-level changed package.
+
+    pytest-cov accepts multiple ``--cov`` options, but passing every nested
+    module separately can trigger repeated imports during collection.  A
+    package root covers the same changed modules without that side effect.
+    """
+    return sorted(
+        {
+            module.split(".", maxsplit=1)[0]
+            for module in _cov_modules_from_changed_files(changed_files)
+        }
+    )
+
+
 def _parse_coverage_pct(stdout: str) -> Optional[float]:
     """Extract total coverage percentage from pytest-cov stdout.
     Tries the TOTAL table line first, then fallback to 'Total coverage: xx%' (e.g. on failure).
@@ -92,15 +107,15 @@ def _build_pytest_cmd(
     changed_files: List[str], coverage_fail_under: int
 ) -> Tuple[List[str], Optional[str]]:
     """Build pytest command and optional coverage report path.
-    Coverage is restricted to changed .py files (one --cov module per file).
+    Coverage is restricted to top-level packages containing changed .py files.
     When coverage_fail_under is 0, coverage is reported but no threshold is enforced.
     """
     cmd: List[str] = [*tool_cmd("pytest"), "-q", "--tb=short"]
     coverage_report_path: Optional[str] = None
-    cov_modules = _cov_modules_from_changed_files(changed_files)
-    if cov_modules:
-        for m in cov_modules:
-            cmd.extend(["--cov", m])
+    coverage_packages = _coverage_package_roots(changed_files)
+    if coverage_packages:
+        for package in coverage_packages:
+            cmd.extend(["--cov", package])
         cmd.extend(["--cov-report", "term"])
         cmd.extend(["--cov-report", f"xml:{COVERAGE_REPORT_FILENAME}"])
         if coverage_fail_under > 0:
@@ -142,7 +157,7 @@ def run_pytest_gate(
     package_dir: Optional[Path] = None,
     coverage_fail_under: int = 0,
 ) -> Tuple[Optional[Dict[str, Any]], Optional[str], bool]:
-    """Run pytest with coverage on changed modules; require passing tests.
+    """Run pytest with coverage on changed packages; require passing tests.
     When coverage_fail_under > 0, also require that coverage meets the threshold."""
     if not enabled:
         return None, None, False

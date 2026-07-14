@@ -15,3 +15,6 @@ dependencies = [
     "truststore>=0.10.4",
     "vulture>=2.14",
 ]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]

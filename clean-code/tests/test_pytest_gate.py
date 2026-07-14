@@ -1,9 +1,9 @@
 """Tests for pytest_gate.gate."""
+
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
-from unittest.mock import MagicMock
+from typing import Any, List, Tuple
 
 import pytest
 
@@ -15,7 +15,9 @@ def test_cov_modules_from_changed_files_empty() -> None:
 
 
 def test_cov_modules_from_changed_files_single() -> None:
-    assert pytest_gate._cov_modules_from_changed_files(["src/etl/foo.py"]) == ["etl.foo"]
+    assert pytest_gate._cov_modules_from_changed_files(["src/etl/foo.py"]) == [
+        "etl.foo"
+    ]
 
 
 def test_cov_modules_from_changed_files_dedupe() -> None:
@@ -43,11 +45,15 @@ def test_coverage_module_uses_nested_package_root(tmp_path: Path) -> None:
     smoke = commands / "smoke.py"
     smoke.touch()
 
-    assert pytest_gate._coverage_module_from_path(str(smoke)) == "benchmark.commands.smoke"
+    assert (
+        pytest_gate._coverage_module_from_path(str(smoke)) == "benchmark.commands.smoke"
+    )
 
 
 def test_cov_modules_from_changed_files_skips_non_py() -> None:
-    assert pytest_gate._cov_modules_from_changed_files(["cli/runner.py", "readme.md"]) == [
+    assert pytest_gate._cov_modules_from_changed_files(
+        ["cli/runner.py", "readme.md"]
+    ) == [
         "cli.runner",
     ]
 
@@ -125,6 +131,7 @@ def test_run_pytest_gate_disabled() -> None:
 
 def test_run_pytest_gate_no_tests_collected(monkeypatch: pytest.MonkeyPatch) -> None:
     """No tests collected is treated as pass; report still reflects it."""
+
     def _fake_tool_cmd(_: str) -> List[str]:
         return ["pytest"]
 
@@ -197,10 +204,43 @@ def test_build_pytest_cmd_with_changed_files(monkeypatch: pytest.MonkeyPatch) ->
     monkeypatch.setattr(pytest_gate, "tool_cmd", _fake_tool_cmd)
     cmd, path = pytest_gate._build_pytest_cmd(["src/a/foo.py", "src/b/bar.py"], 90)
     assert "--cov" in cmd
-    # Coverage restricted to changed files (module names)
-    assert "a.foo" in cmd
-    assert "b.bar" in cmd
+    # Coverage targets are coalesced to their package roots.
+    assert "a" in cmd
+    assert "b" in cmd
     assert "xml:coverage.xml" in cmd
     assert "--cov-fail-under=90" in cmd
     assert path is not None
     assert "coverage.xml" in path
+
+
+def test_build_pytest_cmd_coalesces_nested_modules(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Nested changed modules share one coverage package target."""
+
+    def _fake_tool_cmd(_: str) -> List[str]:
+        return ["pytest"]
+
+    package = tmp_path / "benchmark"
+    analysis = package / "analysis"
+    commands = package / "commands"
+    analysis.mkdir(parents=True)
+    commands.mkdir()
+    for directory in (package, analysis, commands):
+        (directory / "__init__.py").touch()
+    aggregate = analysis / "aggregate.py"
+    smoke = commands / "smoke.py"
+    aggregate.touch()
+    smoke.touch()
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(pytest_gate, "tool_cmd", _fake_tool_cmd)
+    cmd, _ = pytest_gate._build_pytest_cmd(
+        [str(aggregate), str(smoke)],
+        90,
+    )
+
+    coverage_targets = [
+        cmd[index + 1] for index, value in enumerate(cmd[:-1]) if value == "--cov"
+    ]
+    assert coverage_targets == ["benchmark"]
