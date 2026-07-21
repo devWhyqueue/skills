@@ -10,6 +10,7 @@ from audit.checks_ast import (
     detect_imports_not_at_file_top,
     detect_non_snake_case_identifiers,
     function_length_lines,
+    function_param_count,
     has_docstring,
     is_airflow_length_exempt,
     iter_public_functions,
@@ -70,6 +71,38 @@ def test_function_length_lines_single_pass() -> None:
     func = tree.body[0]
     # pass is one line of body
     assert function_length_lines(func) == 1
+
+
+def test_function_param_count_basic() -> None:
+    tree = ast.parse("def f(a: int, b: int, c: int) -> None:\n    pass\n")
+    func = tree.body[0]
+    assert function_param_count(func) == 3
+
+
+def test_function_param_count_ignores_self_and_cls() -> None:
+    tree = ast.parse(
+        "class C:\n"
+        "    def m(self, a: int) -> None:\n"
+        "        pass\n"
+        "    @classmethod\n"
+        "    def c(cls, a: int) -> None:\n"
+        "        pass\n"
+    )
+    method, classmethod_ = tree.body[0].body
+    assert function_param_count(method) == 1
+    assert function_param_count(classmethod_) == 1
+
+
+def test_function_param_count_counts_star_args() -> None:
+    tree = ast.parse("def f(a: int, *args: int, **kwargs: int) -> None:\n    pass\n")
+    func = tree.body[0]
+    assert function_param_count(func) == 3
+
+
+def test_function_param_count_counts_kwonly_and_posonly() -> None:
+    tree = ast.parse("def f(a, /, b, *, c) -> None:\n    pass\n")
+    func = tree.body[0]
+    assert function_param_count(func) == 3
 
 
 def test_is_airflow_length_exempt_dag() -> None:

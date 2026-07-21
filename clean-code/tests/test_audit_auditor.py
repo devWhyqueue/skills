@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from audit.auditor import (
+    MAX_FUNCTION_PARAMS,
     MAX_PACKAGE_CHILDREN,
     Violation,
     _count_package_children,
@@ -75,6 +76,33 @@ def test_function_length_message_is_post_ruff(tmp_path: Path) -> None:
     assert finding.message == (
         "Function 'long_function' has 26 post-Ruff body lines "
         "(max 25; cut/extract 1; don't reformat)."
+    )
+
+
+def test_max_function_params_ok(tmp_path: Path) -> None:
+    params = ", ".join(f"p{i}: int" for i in range(MAX_FUNCTION_PARAMS - 1))
+    path = tmp_path / "ok_params.py"
+    path.write_text(
+        f'"""Mod."""\ndef f({params}) -> None:\n    """Doc."""\n    pass\n'
+    )
+    violations = audit_file(path)
+    assert not any(v.rule_id == "organization.max_function_params" for v in violations)
+
+
+def test_max_function_params_violation_message(tmp_path: Path) -> None:
+    params = ", ".join(f"p{i}: int" for i in range(MAX_FUNCTION_PARAMS))
+    path = tmp_path / "too_many_params.py"
+    path.write_text(
+        f'"""Mod."""\ndef f({params}) -> None:\n    """Doc."""\n    pass\n'
+    )
+    finding = next(
+        violation
+        for violation in audit_file(path)
+        if violation.rule_id == "organization.max_function_params"
+    )
+    assert finding.message == (
+        f"Function 'f' has {MAX_FUNCTION_PARAMS} parameters "
+        f"(max {MAX_FUNCTION_PARAMS - 1}; cut/consolidate 1)."
     )
 
 

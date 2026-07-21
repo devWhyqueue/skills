@@ -37,6 +37,17 @@ def all_args_typed(func: ast.FunctionDef) -> bool:
     return True
 
 
+def function_param_count(func: ast.FunctionDef) -> int:
+    args = func.args
+    params = list(getattr(args, "posonlyargs", [])) + list(args.args) + list(args.kwonlyargs)
+    count = sum(1 for a in params if a.arg not in {"self", "cls"})
+    if args.vararg is not None:
+        count += 1
+    if args.kwarg is not None:
+        count += 1
+    return count
+
+
 def function_length_lines(func: ast.FunctionDef) -> int:
     body = list(func.body or [])
     if not body:

@@ -58,3 +58,6 @@ rules:
   - id: CC-18
     statement: "Resolve all IDE warnings."
     enforcement: MANUAL
+  - id: CC-19
+    statement: "A function must have fewer than 8 parameters."
+    enforcement: AUTO

@@ -10,6 +10,7 @@ from .checks_ast import (
     detect_imports_not_at_file_top,
     detect_non_snake_case_identifiers,
     function_length_lines,
+    function_param_count,
     has_docstring,
     is_airflow_length_exempt,
     iter_public_functions,
@@ -22,6 +23,7 @@ logger = logging.getLogger(__name__)
 _IGNORED_PACKAGE_DIRS = frozenset({"__pycache__"})
 MAX_PACKAGE_CHILDREN = 10
 MAX_FUNCTION_LINES = 25
+MAX_FUNCTION_PARAMS = 8
 
 
 @dataclass(frozen=True, slots=True)
@@ -131,6 +133,20 @@ def _collect_ast_violations_functions(path_str: str, tree: ast.AST) -> list[Viol
                         ),
                     )
                 )
+        pcount = function_param_count(func)
+        if pcount >= MAX_FUNCTION_PARAMS:
+            over_by = pcount - MAX_FUNCTION_PARAMS + 1
+            violations.append(
+                Violation(
+                    rule_id="organization.max_function_params",
+                    file=path_str,
+                    line=getattr(func, "lineno", None),
+                    message=(
+                        f"Function '{func.name}' has {pcount} parameters "
+                        f"(max {MAX_FUNCTION_PARAMS - 1}; cut/consolidate {over_by})."
+                    ),
+                )
+            )
     return violations
 
 
