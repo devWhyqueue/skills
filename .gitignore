@@ -13,3 +13,5 @@
 !/frontend-design/**
 !/playwright/
 !/playwright/**
+!/explain-diff-html/
+!/explain-diff-html/**

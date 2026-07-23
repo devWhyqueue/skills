@@ -1,22 +1,26 @@
 # skills
 
-User-defined Codex skills tracked in `git@github.com:devWhyqueue/skills.git`.
+Personal skill collection.
 
 ## Layout
 
-- `/mnt/c/Users/Yannik/.codex/skills` is the canonical working tree.
-- `/home/yannik/.codex/skills` is a symlink to the Windows path so WSL and Windows use the same files.
-- Only `clean-code`, `doc-coauthoring`, `frontend-design`, `pdf`, `playwright`, and `review` are version-controlled here. Other top-level skill directories may exist locally for runtime use but are ignored by git.
+- `~/.codex/skills` is the canonical working tree.
+- `~/.claude/skills` is a symlink to this directory, so Claude Code sees the same skills as Codex.
+- Only `clean-code`, `doc-coauthoring`, `explain-diff-html`, `frontend-design`, `pdf`, `playwright`, and `review` are version-controlled here. Other top-level skill directories may exist locally for runtime use but are ignored by git.
 
 ## Skills
 
 - `clean-code`: Python clean-code audit and gating pipeline.
 - `doc-coauthoring`: Structured workflow for co-authoring documentation and specs.
+- `explain-diff-html`: Generate a rich, interactive standalone HTML explanation of a code change, diff, branch, or PR.
 - `frontend-design`: Production-grade frontend UI design with distinctive aesthetics.
 - `pdf`: PDF processing guidance and helper scripts.
 - `playwright`: Browser automation from the terminal via `playwright-cli`.
 - `review`: Multi-axis code review guidance.
 
-## Workflow
+## Plugins
 
-Work from either path, but treat the Windows-backed directory as the source of truth. `git status` from WSL and Windows should reflect the same repository state.
+Recommended installs:
+
+- [`caveman`](https://github.com/JuliusBrussee/caveman): compresses agent output (~65% fewer tokens) while keeping technical accuracy.
+- [`ponytail`](https://github.com/DietrichGebert/ponytail): pushes a "lazy senior developer" / YAGNI discipline before generating code, favoring minimal diffs.
