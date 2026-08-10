@@ -1,29 +1,67 @@
 ---
 name: explain-diff-html
-description: Use when the user asks for a rich explanation of a code change, diff, branch, or PR. Produces HTML output.
+description: Create a rich, self-contained interactive HTML explanation of a code change, diff, branch, or pull request. Use when the user wants to understand the background, intuition, implementation, data flow, diagrams, or quiz-based reinforcement for a software change, with the result saved as a dated HTML file outside the repository.
 ---
 
-# Explain Diff
+# Explain Diff HTML
 
-Please make me a rich, interactive explanation of the specified code change.
+Produce a single long-form HTML page that teaches a reader how a specified code change works. Investigate the surrounding system before explaining the diff: the page should make sense to a beginner while still giving an experienced engineer a concise path to the changed behavior.
 
-It should have these sections:
+## Workflow
 
-- Background: Explain the existing system relevant to this change. (You should broadly explore surrounding code for this.) We don't know how much the reader already knows, so include a deep background for beginners (note that it can be skipped if the reader is already familiar), and then a more narrow background directly relevant to the change.
-- Intuition: Explain the core intuition for the code change. The focus here is to explain the essence, not the full details. Use concrete examples with toy data. Use figures and diagrams liberally.
-- Code: Do a high-level walkthrough of the changes to the code. Group/order the changes in an understandable way.
-- Quiz: Come up with five questions that test the reader's knowledge of this PR. This should be medium difficulty, difficult enough that you actually need to understand the substance of the PR to answer them, but not gotchas. The goal is to help the reader make sure that they've actually understood. These should be presented as interactive multiple-choice questions, and when the user clicks, it tells them whether they were correct and gives feedback.
+1. Identify the change and its scope. Use the current checkout, diff, branch, PR metadata, or user-supplied files as the source of truth. If the target is ambiguous, infer the most likely change from the available context and state the assumption in the page.
+2. Explore relevant surrounding code, tests, configuration, callers, data models, and documentation. Trace the old and new paths far enough to explain behavior, not merely file-by-file edits. Prefer checked-in examples and tests over speculation.
+3. Build a narrative before writing HTML:
+   - what problem or constraint motivated the change;
+   - how the old system behaved;
+   - the smallest useful mental model of the new behavior;
+   - how the implementation realizes that model;
+   - edge cases, trade-offs, and observable consequences.
+4. Write the output as one self-contained HTML file with inline CSS and JavaScript. Do not depend on external fonts, CDNs, images, JavaScript packages, or network access. Save it outside the repository, preferably at `/tmp/YYYY-MM-DD-explanation-<slug>.html`, using the current date in `YYYY-MM-DD` format.
+5. Validate the artifact before handing it off: confirm it exists, is a complete HTML document, contains no external asset dependencies, has working quiz interactions, and satisfies the code-block and quiz checks below. If practical, open it in a browser or use a local HTML inspection tool to catch layout or JavaScript errors.
 
-Format:
+## Required page structure
 
-- Output a single self-contained HTML file which includes CSS and JavaScript. Make the whole thing one long page with section headers and a table of contents. Don't use tabs for the top-level structure. Basic responsive styling so you can view it on a phone is nice too. Put the file in a global place on my computer outside of the code repo, and make sure the filename always starts with today's date in `YYYY-MM-DD-` format, because it helps keep the files time-sorted and out of version control. For example: /tmp/2026-01-12-explanation-<slug>.html
-- Please write with the clarity and flow of Martin Kleppmann, making it engaging and written in classic style. Transitions between sections should be smooth.
-- Some tips on diagrams. Ideally, you should pick a small number of diagram families that can be reused throughout the explanation to explain various cases. Some useful kinds of diagrams:
-  - A very simplified version of the UI that the user sees in the app, to explain UI changes.
-  - A system diagram showing data flow or communication between components. Make sure to include example data here!
-- Don't use ASCII diagrams. Always use simple HTML designs for your diagrams, HTML lists for lists of things, etc.
-  - For code blocks, always use `<pre>` tags. If you use a custom styled div instead, it **must** have
-    `white-space: pre-wrap` in its CSS, or the browser will collapse all newlines into a single line.
-    Before saving the file, scan each code block in the HTML source and confirm its CSS includes
-    `white-space: pre` or `pre-wrap`.
-- Use callouts for key concepts or definitions, important edge cases, etc.
+Include a clear title, a short summary, and a table of contents linking to these sections in this order:
+
+1. **Background** — Explain only the system needed for the change. Start with an optional beginner-friendly mental model, then narrow to the exact components, contracts, and prior behavior involved.
+2. **Intuition** — Explain the core idea before implementation detail. Use small concrete toy inputs and outputs. Show the old and new behavior when comparison makes the change clearer.
+3. **Code** — Walk through the changes in conceptual groups, ordered by execution or dependency flow rather than arbitrary file order. Include precise file and line references when available, but do not dump the whole diff.
+4. **Quiz** — Include exactly five medium-difficulty, interactive multiple-choice questions. Clicking an option must immediately show whether it is correct and explain why, including the relevant behavior or code path.
+
+Use smooth transitions, plain language, and precise systems-oriented prose. Explain jargon on first use. Use callouts for definitions, invariants, important edge cases, and practical consequences. Keep the page readable on phones with responsive CSS. Do not use top-level tabs; make it one continuous page.
+
+## Diagrams and examples
+
+Use a small, reusable set of HTML/CSS diagram patterns rather than ornamental graphics:
+
+- flow diagrams for requests, data, or control flow;
+- before/after panels for changed behavior;
+- labeled component cards for system boundaries;
+- compact tables for mappings, invariants, and toy data.
+
+Never use ASCII diagrams. Build diagrams with semantic HTML elements and CSS. Label arrows and include example values whenever the diagram describes data movement. Add accessible text or a caption so the explanation does not depend on visual inspection alone.
+
+## Quiz quality rules
+
+Treat quiz design as part of the explanation, not decoration. Before emitting the page, inspect all five questions as a set.
+
+- Randomize the option order independently for each question. Do not always place the correct answer first, second, or in any fixed position. A deterministic shuffle with a per-page seed is acceptable; the visible order must vary across questions.
+- Balance correct-answer positions across the five questions as evenly as possible. Never let position, letter, punctuation, or a repeated pattern reveal the answer.
+- Keep options comparable in length, grammar, specificity, and confidence. Do not make the correct option conspicuously longer, more qualified, or more technically precise than distractors. Shorten or enrich distractors as needed.
+- Make every distractor plausible and tied to a real misunderstanding of the change. Avoid joke answers, obviously impossible claims, "all/none of the above," and trivia that cannot be inferred from the page.
+- Ask about behavior, causality, contracts, edge cases, or trade-offs. Avoid questions whose answer can be guessed from a single copied phrase.
+- Keep the correct answer and explanation in the page's JavaScript data or DOM so the interaction works offline. Reveal feedback only after selection. Mark the selected option and explain both the right reasoning and, when useful, the misconception behind the distractors.
+- Ensure the UI does not expose the answer through styling before selection, DOM labels, `title` attributes, source ordering, or accessibility text. Accessibility labels should describe the option, not its correctness.
+
+## HTML and code-block constraints
+
+- Escape user/code-derived text for HTML and JavaScript contexts. Preserve meaningful whitespace in code examples.
+- Use `<pre><code>...</code></pre>` for code blocks. The CSS for `pre` must explicitly include `white-space: pre` or `white-space: pre-wrap`; verify every code block in the saved source before delivery.
+- Keep JavaScript small, namespaced, and dependency-free. Use event listeners rather than inline handlers when convenient, and handle repeated quiz cards without relying on fragile global selectors.
+- Include visible focus states and sufficient color contrast. Do not make correctness depend on color alone.
+- Avoid claiming behavior that the inspected source does not support. Distinguish observed facts from reasonable interpretation.
+
+## Final handoff
+
+Return the exact absolute path to the generated HTML file as a clickable local-file link. Briefly state what was inspected and any assumptions or validation limitations. Do not place the deliverable inside the code repository unless the user explicitly requests that.
