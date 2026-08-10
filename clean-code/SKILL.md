@@ -7,6 +7,8 @@ Run from the calling project root:
 
 `uv run python "$env:USERPROFILE\.codex\skills\clean-code\run.py"`
 
+When running through Codex, set command timeout to at least 600000 ms (10 min).
+
 - Default: audit, Pyright, Vulture, and pytest on changed non-test `*.py` files.
 - Use `--scope <package-or-path>` to restrict files, `--vulture-scope <paths>` to set scan roots, and `--min-coverage <N>` to require coverage.
 - Use `--full` to add Sonar and semantic review; use `--json` only when the complete machine-readable report is needed.
