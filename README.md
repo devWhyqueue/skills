@@ -6,7 +6,7 @@ Personal skill collection.
 
 - `~/.codex/skills` is the canonical working tree.
 - `~/.claude/skills` is a symlink to this directory, so Claude Code sees the same skills as Codex.
-- Only `clean-code`, `doc-coauthoring`, `explain-diff-html`, `frontend-design`, `pdf`, `playwright`, and `review` are version-controlled here. Other top-level skill directories may exist locally for runtime use but are ignored by git.
+- Only `clean-code`, `doc-coauthoring`, `explain-diff-html`, `frontend-design`, and `review` are version-controlled here. Other top-level skill directories may exist locally for runtime use but are ignored by git.
 
 ## Skills
 
@@ -14,8 +14,6 @@ Personal skill collection.
 - `doc-coauthoring`: Structured workflow for co-authoring documentation and specs.
 - `explain-diff-html`: Generate a rich, interactive standalone HTML explanation of a code change, diff, branch, or PR.
 - `frontend-design`: Production-grade frontend UI design with distinctive aesthetics.
-- `pdf`: PDF processing guidance and helper scripts.
-- `playwright`: Browser automation from the terminal via `playwright-cli`.
 - `review`: Multi-axis code review guidance.
 
 ## Plugins
