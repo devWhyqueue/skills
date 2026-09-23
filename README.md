@@ -6,15 +6,13 @@ Personal skill collection.
 
 - `~/.codex/skills` is the canonical working tree.
 - `~/.claude/skills` is a symlink to this directory, so Claude Code sees the same skills as Codex.
-- Only `clean-code`, `doc-coauthoring`, `explain-diff-html`, `frontend-design`, and `review` are version-controlled here. Other top-level skill directories may exist locally for runtime use but are ignored by git.
+- Only `clean-code`, `doc-coauthoring`, and `explain-diff-html` are version-controlled here. Other top-level skill directories may exist locally for runtime use but are ignored by git.
 
 ## Skills
 
 - `clean-code`: Python clean-code audit and gating pipeline.
 - `doc-coauthoring`: Structured workflow for co-authoring documentation and specs.
 - `explain-diff-html`: Generate a rich, interactive standalone HTML explanation of a code change, diff, branch, or PR.
-- `frontend-design`: Production-grade frontend UI design with distinctive aesthetics.
-- `review`: Multi-axis code review guidance.
 
 ## Plugins
 
